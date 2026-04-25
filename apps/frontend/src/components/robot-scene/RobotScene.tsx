@@ -11,12 +11,15 @@ import type {
   SortedCubeEvent,
 } from "./types";
 
+const NORMAL_SCENE_SPEED = 1;
+const FAST_SCENE_SPEED = 5;
+
 export function RobotScene({
   time: controlledTime,
   isPlaying: controlledIsPlaying,
   onTimeChange,
   onCubeSorted,
-  robotTheme = "tesla",
+  robotTheme = "white",
   showControls = false,
   className = "",
   canvasClassName = "h-[360px] w-full lg:h-[448px]",
@@ -26,8 +29,11 @@ export function RobotScene({
   const onCubeSortedRef = useRef<RobotSceneProps["onCubeSorted"]>(onCubeSorted);
   const spawnCubeRef = useRef<SceneActions["spawnCube"] | null>(null);
   const resetCubesRef = useRef<SceneActions["resetCubes"] | null>(null);
+  const setSpeedMultiplierRef = useRef<SceneActions["setSpeedMultiplier"] | null>(null);
+  const speedMultiplierRef = useRef(NORMAL_SCENE_SPEED);
   const [internalTime, setInternalTime] = useState(0);
   const [internalIsPlaying, setInternalIsPlaying] = useState(true);
+  const [isFastMode, setIsFastMode] = useState(false);
   const [selectedRobotTheme, setSelectedRobotTheme] =
     useState<RobotColorTheme>(robotTheme);
   const time = controlledTime ?? internalTime;
@@ -98,9 +104,11 @@ export function RobotScene({
 
     spawnCubeRef.current = null;
     resetCubesRef.current = null;
+    setSpeedMultiplierRef.current = null;
 
     void startRobotScene(container, handleCubeSorted, {
       robotTheme: selectedRobotTheme,
+      speedMultiplier: speedMultiplierRef.current,
     }).then((runtime) => {
       if (disposed) {
         runtime.cleanup();
@@ -109,6 +117,7 @@ export function RobotScene({
 
       spawnCubeRef.current = runtime.actions.spawnCube;
       resetCubesRef.current = runtime.actions.resetCubes;
+      setSpeedMultiplierRef.current = runtime.actions.setSpeedMultiplier;
       cleanupScene = runtime.cleanup;
     });
 
@@ -116,9 +125,21 @@ export function RobotScene({
       disposed = true;
       spawnCubeRef.current = null;
       resetCubesRef.current = null;
+      setSpeedMultiplierRef.current = null;
       cleanupScene?.();
     };
   }, [selectedRobotTheme]);
+
+  const handleSpeedToggle = () => {
+    setIsFastMode((current) => {
+      const nextIsFastMode = !current;
+      const nextSpeedMultiplier = nextIsFastMode ? FAST_SCENE_SPEED : NORMAL_SCENE_SPEED;
+
+      speedMultiplierRef.current = nextSpeedMultiplier;
+      setSpeedMultiplierRef.current?.(nextSpeedMultiplier);
+      return nextIsFastMode;
+    });
+  };
 
   return (
     <div
@@ -154,6 +175,17 @@ export function RobotScene({
           className="border border-blue-500/30 bg-white/80 px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700 shadow-[0_10px_30px_rgba(23,32,51,0.12)] backdrop-blur transition hover:bg-blue-50"
         >
           Spawn Cube
+        </button>
+        <button
+          type="button"
+          onClick={handleSpeedToggle}
+          className={`border px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] shadow-[0_10px_30px_rgba(23,32,51,0.12)] backdrop-blur transition ${
+            isFastMode
+              ? "border-emerald-500/40 bg-emerald-50/90 text-emerald-700 hover:bg-emerald-100"
+              : "border-blue-500/30 bg-white/80 text-blue-700 hover:bg-blue-50"
+          }`}
+        >
+          {isFastMode ? "Normal Speed" : "5x Speed"}
         </button>
         <button
           type="button"

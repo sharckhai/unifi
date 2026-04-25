@@ -28,7 +28,7 @@ type RobotMaterialPalette = {
 const SCENE_FLOOR_RADIUS = 3.25;
 
 export const ROBOT_COLOR_THEMES: RobotMaterialPalette[] = [
-  { id: "tesla", label: "Tesla", shell: 0xf8fafc, joint: 0xe5e7eb, dark: 0x10141d },
+  { id: "white", label: "White", shell: 0xf8fafc, joint: 0xe5e7eb, dark: 0x10141d },
   { id: "graphite", label: "Graphite", shell: 0x202532, joint: 0x9ca3af, dark: 0x070a11 },
   { id: "ice", label: "Ice", shell: 0xf0f9ff, joint: 0xbfe3ff, dark: 0x123047 },
   { id: "copper", label: "Copper", shell: 0xfff7ed, joint: 0xc47a4a, dark: 0x24140f },
@@ -48,6 +48,7 @@ export const ROBOT_COLOR_THEMES: RobotMaterialPalette[] = [
 
 type RobotSceneOptions = {
   robotTheme?: RobotColorTheme;
+  speedMultiplier?: number;
 };
 
 export async function startRobotScene(
@@ -234,13 +235,14 @@ export async function startRobotScene(
   };
 
   let previousTimestamp = performance.now();
+  let speedMultiplier = options.speedMultiplier ?? 1;
 
   const animate = () => {
     const timestamp = performance.now();
     const delta = Math.min((timestamp - previousTimestamp) / 1000, 1 / 30);
     previousTimestamp = timestamp;
 
-    const state = sortingSimulation.update(delta);
+    const state = sortingSimulation.update(delta * speedMultiplier);
     renderPose = state.currentPose;
     renderGripperOpen = state.currentGripperOpen;
 
@@ -253,7 +255,12 @@ export async function startRobotScene(
     }
 
     sortingSimulation.completeFrame();
-    world.step();
+
+    const physicsSteps = Math.max(1, Math.round(speedMultiplier));
+    for (let step = 0; step < physicsSteps; step += 1) {
+      world.step();
+    }
+
     sortingSimulation.syncCubeMeshes();
     applyPoseToRig(rig, renderPose);
     applyGripperToRig(gripper, renderGripperOpen);
@@ -316,6 +323,9 @@ export async function startRobotScene(
     actions: {
       spawnCube: sortingSimulation.spawnCube,
       resetCubes: sortingSimulation.resetCubes,
+      setSpeedMultiplier: (nextSpeedMultiplier) => {
+        speedMultiplier = nextSpeedMultiplier;
+      },
     },
     cleanup,
   };

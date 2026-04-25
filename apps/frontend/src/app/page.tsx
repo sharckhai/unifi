@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -59,13 +59,16 @@ const telemetryData = [
 const kpis = [
   { label: "Wear Factor Live", color: "#2563eb", dataKey: "wear", icon: Activity },
   { label: "Cost per Pick", color: "#0ea5e9", dataKey: "wearCost", icon: CircleDollarSign },
-  { label: "Tageskosten Projektion", color: "#6366f1", dataKey: "energy", icon: Gauge },
-  { label: "Projected Lifetime", color: "#64748b", dataKey: "capital", icon: CheckCircle2 },
+  { label: "Daily Revenue Projection", color: "#6366f1", dataKey: "dailyRevenue", icon: Gauge },
+  { label: "Robot Value", color: "#64748b", dataKey: "robotValue", icon: CheckCircle2 },
 ];
 
 const SELECTED_THEME_STORAGE_KEY = "unifi:selectedRobotTheme";
 const UNIFI_API_BASE_URL =
   process.env.NEXT_PUBLIC_UNIFI_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
+const LIVE_CHART_WINDOW_SIZE = telemetryData.length;
+const DAILY_PICK_PROJECTION = 14400;
+const PAY_PER_PICK_REVENUE_MULTIPLIER = 1.15 * 1.25;
 
 function readInitialRobotTheme(): RobotColorTheme {
   if (typeof window === "undefined") {
@@ -98,6 +101,7 @@ type LiveTelemetryPoint = Omit<TelemetryPoint, "wear" | "wearCost" | "energy" | 
   energy: number | null;
   capital: number | null;
   maintenance: number | null;
+  robotValue: number | null;
 };
 
 type ApiCostBreakdown = {
@@ -112,6 +116,9 @@ type ApiCostBreakdown = {
 type ApiSimulatePickResponse = {
   wear_rate_multiplier: number;
   cost: ApiCostBreakdown;
+  live_residual: {
+    residual_value_eur: number;
+  };
 };
 
 type LiveWearCostResponse = {
@@ -125,6 +132,7 @@ type LiveWearCostResponse = {
   energy: number;
   capital: number;
   maintenance: number;
+  robotValue: number;
 };
 
 type TooltipContentProps = {
@@ -139,6 +147,72 @@ function formatCurrency(value: number) {
   return `€${value.toFixed(4)}`;
 }
 
+function formatWholeCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function calculateAllInCost(
+  point: Pick<LiveTelemetryPoint, "wearCost" | "energy" | "capital" | "maintenance">,
+) {
+  return (point.wearCost ?? 0) + (point.energy ?? 0) + (point.capital ?? 0) + (point.maintenance ?? 0);
+}
+
+function calculatePayPerPickRevenue(
+  point: Pick<LiveTelemetryPoint, "wearCost" | "energy" | "capital" | "maintenance">,
+) {
+  return calculateAllInCost(point) * PAY_PER_PICK_REVENUE_MULTIPLIER;
+}
+
+function useAnimatedNumber(targetValue: number, durationMs = 520) {
+  const [animatedValue, setAnimatedValue] = useState(targetValue);
+  const animatedValueRef = useRef(targetValue);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      animatedValueRef.current = targetValue;
+      setAnimatedValue(targetValue);
+      return undefined;
+    }
+
+    const startValue = animatedValueRef.current;
+    const delta = targetValue - startValue;
+
+    if (Math.abs(delta) < 0.000001) {
+      return undefined;
+    }
+
+    const startedAt = performance.now();
+    let frameId = 0;
+
+    const tick = (timestamp: number) => {
+      const progress = Math.min((timestamp - startedAt) / durationMs, 1);
+      const easedProgress = 1 - (1 - progress) ** 3;
+      const nextValue = startValue + delta * easedProgress;
+
+      animatedValueRef.current = nextValue;
+      setAnimatedValue(nextValue);
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(tick);
+        return;
+      }
+
+      animatedValueRef.current = targetValue;
+      setAnimatedValue(targetValue);
+    };
+
+    frameId = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(frameId);
+  }, [durationMs, targetValue]);
+
+  return animatedValue;
+}
+
 function createEmptyTelemetryPoint(point: TelemetryPoint): LiveTelemetryPoint {
   return {
     ...point,
@@ -147,7 +221,12 @@ function createEmptyTelemetryPoint(point: TelemetryPoint): LiveTelemetryPoint {
     energy: null,
     capital: null,
     maintenance: null,
+    robotValue: null,
   };
+}
+
+function formatPickLabel(pickNumber: number) {
+  return `Pick ${pickNumber.toString().padStart(2, "0")}`;
 }
 
 async function postSimulatedPick(event: SortedCubeEvent): Promise<LiveWearCostResponse> {
@@ -189,6 +268,7 @@ async function postSimulatedPick(event: SortedCubeEvent): Promise<LiveWearCostRe
     energy: body.cost.energy_eur,
     capital: body.cost.capital_eur,
     maintenance: body.cost.maintenance_eur,
+    robotValue: body.live_residual.residual_value_eur,
   };
 }
 
@@ -232,7 +312,7 @@ function DashboardCard({
   return (
     <section id={id} className={`panel-glass relative overflow-hidden p-4 ${className}`}>
       <div className="pointer-events-none absolute right-3 top-3 h-10 w-10 border-r border-t border-blue-500/20" />
-      <div className="mb-3 flex items-center gap-2 micro-label text-slate-600">
+      <div className="mb-3 flex items-center gap-2 text-sm font-extrabold uppercase tracking-[0.18em] text-slate-700">
         <span className="h-1.5 w-1.5 bg-blue-600" />
         {title}
         <Info className="h-3 w-3 text-blue-500/50" aria-hidden="true" />
@@ -300,7 +380,7 @@ function Sparkline({
   dataKey,
   color,
 }: {
-  data: LiveTelemetryPoint[];
+  data: Array<LiveTelemetryPoint & { dailyRevenue?: number }>;
   dataKey: string;
   color: string;
 }) {
@@ -316,12 +396,9 @@ function Sparkline({
 export default function Home() {
   const [sortedPickCount, setSortedPickCount] = useState(0);
   const [selectedRobotTheme] = useState<RobotColorTheme>(() => readInitialRobotTheme());
-  const [liveTelemetryData, setLiveTelemetryData] = useState<LiveTelemetryPoint[]>(() =>
-    telemetryData.map(createEmptyTelemetryPoint),
-  );
+  const [liveTelemetryData, setLiveTelemetryData] = useState<LiveTelemetryPoint[]>([]);
   const [lastRequest, setLastRequest] = useState<SortedCubeEvent | null>(null);
   const [lastApiResult, setLastApiResult] = useState<LiveWearCostResponse | null>(null);
-  const [isApiPending, setIsApiPending] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const latestRequestIdRef = useRef(0);
   const selectedTheme =
@@ -332,60 +409,74 @@ export default function Home() {
     latestRequestIdRef.current = requestId;
     setSortedPickCount(event.totalSorted);
     setLastRequest(event);
-    setIsApiPending(true);
     setApiError(null);
 
     void postSimulatedPick(event)
       .then((response) => {
-        const telemetryIndex = (response.pickNumber - 1) % telemetryData.length;
-
         setLiveTelemetryData((currentData) => {
-          const nextData = [...currentData];
-          nextData[telemetryIndex] = {
-            ...telemetryData[telemetryIndex],
-            wear: response.wear,
-            wearCost: response.wearCost,
-            energy: response.energy,
-            capital: response.capital,
-            maintenance: response.maintenance,
-          };
-          return nextData;
+          const templatePoint = telemetryData[(response.pickNumber - 1) % telemetryData.length];
+
+          return [
+            ...currentData,
+            {
+              ...templatePoint,
+              label: formatPickLabel(response.pickNumber),
+              wear: response.wear,
+              wearCost: response.wearCost,
+              energy: response.energy,
+              capital: response.capital,
+              maintenance: response.maintenance,
+              robotValue: response.robotValue,
+            },
+          ];
         });
 
         if (latestRequestIdRef.current === requestId) {
           setLastApiResult(response);
-          setIsApiPending(false);
         }
       })
       .catch((error: unknown) => {
         if (latestRequestIdRef.current === requestId) {
           setApiError(error instanceof Error ? error.message : "FastAPI request failed.");
-          setIsApiPending(false);
         }
       });
   }, []);
-  const currentIndex = useMemo(
-    () => (sortedPickCount === 0 ? 0 : (sortedPickCount - 1) % telemetryData.length),
-    [sortedPickCount],
-  );
-  const liveSparklineData = useMemo(
+  const visibleTelemetryData = useMemo(
     () =>
-      liveTelemetryData.slice(
-        0,
-        Math.min(
-          liveTelemetryData.length,
-          Math.max(
-            2,
-            currentIndex + 1,
-          ),
-        ),
-      ),
-    [currentIndex, liveTelemetryData],
+      liveTelemetryData.length > 0
+        ? liveTelemetryData.slice(-LIVE_CHART_WINDOW_SIZE)
+        : telemetryData.map(createEmptyTelemetryPoint),
+    [liveTelemetryData],
   );
-  const costPerPick = lastApiResult
-    ? lastApiResult.wearCost + lastApiResult.energy + lastApiResult.capital + lastApiResult.maintenance
-    : 0;
+  const activeChartIndex = useMemo(
+    () => (liveTelemetryData.length > 0 ? visibleTelemetryData.length - 1 : 0),
+    [liveTelemetryData.length, visibleTelemetryData.length],
+  );
+  const liveSparklineData = useMemo(() => {
+    let runningRevenue = 0;
+
+    return liveTelemetryData
+      .map((point, index) => {
+        runningRevenue += calculatePayPerPickRevenue(point);
+
+        return {
+          ...point,
+          dailyRevenue: (runningRevenue / (index + 1)) * DAILY_PICK_PROJECTION,
+        };
+      })
+      .slice(-LIVE_CHART_WINDOW_SIZE);
+  }, [liveTelemetryData]);
+  const costPerPick = lastApiResult ? calculateAllInCost(lastApiResult) : 0;
+  const totalRevenue = liveTelemetryData.reduce(
+    (total, point) => total + calculatePayPerPickRevenue(point),
+    0,
+  );
+  const projectedDailyRevenue =
+    liveTelemetryData.length > 0 ? (totalRevenue / liveTelemetryData.length) * DAILY_PICK_PROJECTION : 0;
+  const animatedCostPerPick = useAnimatedNumber(costPerPick);
+  const animatedTotalRevenue = useAnimatedNumber(totalRevenue);
   const displayedWearFactor = lastApiResult?.wear ?? null;
+  const animatedWearFactor = useAnimatedNumber(displayedWearFactor ?? 0);
   const lastPickNumber = lastRequest?.totalSorted ?? sortedPickCount;
   const lastWeightLabel = lastRequest ? `${lastRequest.weightKg.toFixed(0)} kg` : "-";
   const lastDurationLabel = lastRequest ? `${lastRequest.sortDurationSeconds.toFixed(2)} s` : "-";
@@ -417,16 +508,16 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <div className="hidden items-center gap-2 border border-blue-500/20 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600 sm:inline-flex">
               <span className="h-1.5 w-1.5 bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.85)]" />
-              Live Telemetrie
+              Live Telemetry
             </div>
             <Link href="/robots" className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50">
-              Roboter
+              Robots
             </Link>
             <button id="ucs" type="button" className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50">
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
               Report Export
             </button>
-            <button type="button" className="grid h-9 w-9 place-items-center border border-blue-500/20 bg-white/45 text-slate-600 transition hover:text-blue-600" aria-label="Einstellungen">
+            <button type="button" className="grid h-9 w-9 place-items-center border border-blue-500/20 bg-white/45 text-slate-600 transition hover:text-blue-600" aria-label="Settings">
               <Settings className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
@@ -446,14 +537,50 @@ export default function Home() {
           </section>
 
           <aside className="grid min-h-0 gap-3 lg:grid-rows-2">
+            <DashboardCard title="Revenue Stack" className="flex min-h-0 flex-col">
+              <div className="mb-3 grid grid-cols-2 items-end gap-4">
+                <div className="min-w-0">
+                  <div className="font-mono text-4xl font-semibold tracking-[-0.06em] text-blue-700">
+                    {formatCurrency(animatedCostPerPick)}
+                  </div>
+                  <div className="micro-label mt-1 text-slate-500">
+                    All-in per Pick - {lastCubeLabel}
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="font-mono text-4xl font-semibold tracking-[-0.06em] text-emerald-700">
+                    {formatCurrency(animatedTotalRevenue)}
+                  </div>
+                  <div className="micro-label mt-1 text-slate-500">
+                    Total Revenue - {liveTelemetryData.length}{" "}
+                    {liveTelemetryData.length === 1 ? "Pick" : "Picks"}
+                  </div>
+                </div>
+              </div>
+              <CostStackChart data={visibleTelemetryData} activeIndex={activeChartIndex} />
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] text-slate-500">
+                {[
+                  ["Wear", "#1f55ff"],
+                  ["Energy", "#5678ff"],
+                  ["Capital", "#8ea2ff"],
+                  ["Maintenance", "#172033"],
+                ].map(([label, color]) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <span className="h-2 w-2" style={{ backgroundColor: color }} />
+                    {label}
+                  </div>
+                ))}
+              </div>
+            </DashboardCard>
+
             <DashboardCard id="pricing" title="Wear Factor" className="flex min-h-0 flex-col">
               <div className="mb-3 flex items-end justify-between">
                 <div>
                   <div className="font-mono text-4xl font-semibold tracking-[-0.06em] text-blue-700">
-                    {isApiPending ? "..." : `${(displayedWearFactor ?? 0).toFixed(2)} x`}
+                    {`${animatedWearFactor.toFixed(2)} x`}
                   </div>
                   <div className="micro-label mt-1 text-blue-600">
-                    POST {UNIFI_API_BASE_URL}/simulate/pick - Pick #{Math.max(1, lastPickNumber)}
+                    Pick #{Math.max(1, lastPickNumber)}
                   </div>
                   {apiError ? (
                     <div className="mt-2 max-w-[260px] text-[10px] font-semibold text-red-600">
@@ -473,35 +600,7 @@ export default function Home() {
                 </div>
                 <Activity className="h-5 w-5 text-blue-500/70" aria-hidden="true" />
               </div>
-              <WearFactorChart data={liveTelemetryData} activeIndex={currentIndex} />
-            </DashboardCard>
-
-            <DashboardCard title="Cost Stack" className="flex min-h-0 flex-col">
-              <div className="mb-3 flex items-end justify-between">
-                <div>
-                  <div className="font-mono text-4xl font-semibold tracking-[-0.06em] text-blue-700">
-                    {isApiPending ? "..." : formatCurrency(costPerPick)}
-                  </div>
-                  <div className="micro-label mt-1 text-slate-500">
-                    All-in per Pick - {lastCubeLabel}
-                  </div>
-                </div>
-                <CircleDollarSign className="h-5 w-5 text-blue-500/70" aria-hidden="true" />
-              </div>
-              <CostStackChart data={liveTelemetryData} activeIndex={currentIndex} />
-              <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] text-slate-500">
-                {[
-                  ["Wear", "#1f55ff"],
-                  ["Energy", "#5678ff"],
-                  ["Capital", "#8ea2ff"],
-                  ["Maintenance", "#172033"],
-                ].map(([label, color]) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <span className="h-2 w-2" style={{ backgroundColor: color }} />
-                    {label}
-                  </div>
-                ))}
-              </div>
+              <WearFactorChart data={visibleTelemetryData} activeIndex={activeChartIndex} />
             </DashboardCard>
 
           </aside>
@@ -517,9 +616,9 @@ export default function Home() {
                   : `${displayedWearFactor.toFixed(2)} x`
                 : kpi.dataKey === "wearCost"
                   ? formatCurrency(costPerPick)
-                  : kpi.dataKey === "energy"
-                    ? formatCurrency(costPerPick * 14400)
-                    : `${Math.max(38, 88 - (displayedWearFactor ?? 0) * 8).toFixed(0)}% nominal`;
+                  : kpi.dataKey === "dailyRevenue"
+                    ? formatCurrency(projectedDailyRevenue)
+                    : formatWholeCurrency(lastApiResult?.robotValue ?? 0);
 
             return (
               <div key={kpi.label} className="border-blue-500/15 px-4 py-3 md:border-r md:last:border-r-0">
