@@ -12,10 +12,12 @@ factor`. Source: market-typical for Western-Europe equipment leases at
 
 from __future__ import annotations
 
+from unifi.cost.schema import OperatingProfile
 from unifi.deal_desk.schema import RobotInfo, RobotSummary
 from unifi.ucs.schema import UcsDatasheet
 
 MONTHLY_LEASING_FACTOR: float = 0.022
+_DEFAULT_OPERATING_PROFILE = OperatingProfile()
 
 
 UR5_DATASHEET = UcsDatasheet(
@@ -117,6 +119,8 @@ def get_datasheet(robot_name: str) -> UcsDatasheet:
 
 def build_robot_info(robot_name: str) -> RobotInfo:
     ds = get_datasheet(robot_name)
+    picks_per_year = _DEFAULT_OPERATING_PROFILE.resolve_picks_per_year(ds)
+    picks_per_hour = (3600.0 / ds.rated_cycle_time_s) * ds.nominal_duty_cycle
     return RobotInfo(
         name=robot_name,
         robot_class=ds.robot_class,
@@ -124,8 +128,11 @@ def build_robot_info(robot_name: str) -> RobotInfo:
         nominal_picks_lifetime=ds.nominal_picks_lifetime,
         rated_payload_kg=ds.rated_payload_kg,
         rated_cycle_time_s=ds.rated_cycle_time_s,
+        nominal_duty_cycle=ds.nominal_duty_cycle,
         power_consumption_w=ds.power_consumption_w or 0.0,
         maintenance_cost_pct_per_year=ds.maintenance_cost_pct_per_year,
+        picks_per_hour_at_full_duty=picks_per_hour,
+        nominal_picks_per_month_per_robot=picks_per_year // 12,
         suitable_for=_SUITABLE[robot_name],
         not_suitable_for=_NOT_SUITABLE[robot_name],
     )

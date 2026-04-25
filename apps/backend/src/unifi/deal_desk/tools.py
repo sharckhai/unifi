@@ -47,7 +47,6 @@ _INQUIRY_SCHEMA = types.Schema(
     properties={
         "customer_name": types.Schema(type=types.Type.STRING),
         "industry": types.Schema(type=types.Type.STRING),
-        "fleet_size": types.Schema(type=types.Type.INTEGER),
         "weight_mix": types.Schema(
             type=types.Type.OBJECT,
             properties={
@@ -57,24 +56,27 @@ _INQUIRY_SCHEMA = types.Schema(
             },
             required=["light_share", "medium_share", "heavy_share"],
         ),
+        "is_one_time_project": types.Schema(type=types.Type.BOOLEAN),
         "expected_picks_per_month": types.Schema(type=types.Type.INTEGER),
         "seasonality": types.Schema(type=types.Type.STRING),
-        "term_preference_months": types.Schema(type=types.Type.INTEGER),
+        "notes": types.Schema(type=types.Type.STRING),
+        "fleet_size": types.Schema(type=types.Type.INTEGER, nullable=True),
+        "term_preference_months": types.Schema(
+            type=types.Type.INTEGER, nullable=True
+        ),
         "flexibility_priority": types.Schema(
             type=types.Type.STRING,
             enum=["low", "medium", "high"],
+            nullable=True,
         ),
-        "notes": types.Schema(type=types.Type.STRING),
     },
     required=[
         "customer_name",
         "industry",
-        "fleet_size",
         "weight_mix",
+        "is_one_time_project",
         "expected_picks_per_month",
         "seasonality",
-        "term_preference_months",
-        "flexibility_priority",
         "notes",
     ],
 )
@@ -104,10 +106,27 @@ def analyze_pdf_inquiry(pdf_path: str, session: ToolSession) -> Inquiry:
         contents=[
             types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
             (
-                "Extract the structured inquiry data from this customer letter. "
-                "Map weight mentions to light (≤1 kg), medium (1–3 kg), heavy (>3 kg). "
-                "Convert any annual volume to monthly (divide by 12). "
-                "If a field is not stated, use a sensible default and note it in `notes`."
+                "Extract only what the customer explicitly states.\n\n"
+                "Set `is_one_time_project` to true if the customer asks for a "
+                "single batch / one-off run / fixed total volume with no "
+                "recurring follow-up. False for recurring monthly volume.\n\n"
+                "Volume: count placements (picks), not finished assemblies. "
+                "If the customer mentions N units and each requires K "
+                "components, the volume is N × K picks. For a recurring "
+                "contract (`is_one_time_project = false`), put picks per "
+                "month in `expected_picks_per_month`. For a one-time project "
+                "(`is_one_time_project = true`), put the full one-off total "
+                "in `expected_picks_per_month` — the agent will derive the "
+                "project duration from robot capacity.\n\n"
+                "Weight mix: light = ≤1 kg, medium = 1–3 kg, heavy = >3 kg. "
+                "Use the share of picks (not assemblies) per class.\n\n"
+                "Set `fleet_size`, `term_preference_months`, and "
+                "`flexibility_priority` to null if the customer did not state "
+                "them — those are recommendations the agent will derive from "
+                "robot specs and standard contract conventions. Do not "
+                "fabricate values.\n\n"
+                "Use `notes` to capture anything else the customer mentions "
+                "that doesn't fit the structured fields."
             ),
         ],
         config=types.GenerateContentConfig(

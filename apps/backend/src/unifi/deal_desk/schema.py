@@ -28,19 +28,32 @@ class WeightMix(BaseModel):
 
 
 class Inquiry(BaseModel):
-    """Structured customer inquiry extracted from the PDF."""
+    """Structured customer inquiry extracted from the PDF.
+
+    Customer-stated facts only. The agent recommends fleet size, contract
+    term, and flexibility level as part of the offer reasoning — those
+    fields are nullable here so the prompt knows what the customer
+    actually said vs. what the agent must infer.
+
+    `is_one_time_project` flips the offer from a recurring monthly
+    contract to a single-batch project quote. When true,
+    `expected_picks_per_month` carries the *total* one-time volume (the
+    agent will derive a project duration from robot capacity rather than
+    multiplying across months).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     customer_name: str
     industry: str
-    fleet_size: int = Field(ge=1)
     weight_mix: WeightMix
+    is_one_time_project: bool
     expected_picks_per_month: int = Field(ge=1)
     seasonality: str
-    term_preference_months: int = Field(ge=1)
-    flexibility_priority: FlexibilityPriority
     notes: str = ""
+    fleet_size: int | None = None
+    term_preference_months: int | None = None
+    flexibility_priority: FlexibilityPriority | None = None
 
 
 class RobotSummary(BaseModel):
@@ -54,7 +67,16 @@ class RobotSummary(BaseModel):
 
 
 class RobotInfo(BaseModel):
-    """Full robot info returned by get_robot_infos."""
+    """Full robot info returned by get_robot_infos.
+
+    Two sizing helpers for the agent:
+    - `picks_per_hour_at_full_duty`: throughput when the robot runs flat
+      out, i.e. 3600 s / cycle_time × nominal_duty_cycle. Use this to
+      estimate project duration for one-time batches.
+    - `nominal_picks_per_month_per_robot`: throughput at default
+      industrial utilization (one effective shift per day). Use this to
+      size a fleet for recurring monthly volumes.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -64,8 +86,11 @@ class RobotInfo(BaseModel):
     nominal_picks_lifetime: int
     rated_payload_kg: float
     rated_cycle_time_s: float
+    nominal_duty_cycle: float
     power_consumption_w: float
     maintenance_cost_pct_per_year: float
+    picks_per_hour_at_full_duty: float
+    nominal_picks_per_month_per_robot: int
     suitable_for: list[str]
     not_suitable_for: list[str]
 

@@ -145,6 +145,7 @@ def test_analyze_pdf_inquiry_round_trips_through_fake_client(tmp_path):
         industry="testing",
         fleet_size=5,
         weight_mix=WeightMix(light_share=0.5, medium_share=0.4, heavy_share=0.1),
+        is_one_time_project=False,
         expected_picks_per_month=500_000,
         seasonality="none",
         term_preference_months=36,
