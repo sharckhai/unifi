@@ -66,7 +66,11 @@ def test_renormalize_identity_when_ratios_are_one():
     assert result.payload_class == "heavy"
 
 
-def test_doubling_component_weight_doubles_force_and_torque():
+def test_doubling_component_weight_scales_load_features_sublinearly():
+    """Last-Features skalieren mit mass_ratio**0.5 (NIST-empirisch sublinear).
+    2× Last → √2 ≈ 1.414× Last-Features.
+    """
+    import math
     feats = _features()
     base = renormalize(
         feats, source_payload_lb=45, source_speed="halfspeed",
@@ -76,9 +80,10 @@ def test_doubling_component_weight_doubles_force_and_torque():
         feats, source_payload_lb=45, source_speed="halfspeed",
         component_weight_kg=20.0, pick_duration_s=4.0, datasheet=UR5_DATASHEET,
     )
-    assert heavy.tcp_force_norm == pytest.approx(2 * base.tcp_force_norm)
-    assert heavy.torque_load_ratio_max == pytest.approx(2 * base.torque_load_ratio_max)
-    assert heavy.motor_load_ratio_max == pytest.approx(2 * base.motor_load_ratio_max)
+    expected = math.sqrt(2)
+    assert heavy.tcp_force_norm == pytest.approx(expected * base.tcp_force_norm)
+    assert heavy.torque_load_ratio_max == pytest.approx(expected * base.torque_load_ratio_max)
+    assert heavy.motor_load_ratio_max == pytest.approx(expected * base.motor_load_ratio_max)
 
 
 def test_halving_pick_duration_doubles_velocity_and_cycle_intensity():
