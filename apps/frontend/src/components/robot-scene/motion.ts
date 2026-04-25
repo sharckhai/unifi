@@ -88,9 +88,15 @@ export function isAngleBetween(angle: number, start: number, end: number) {
   return normalizedAngle >= normalizedStart || normalizedAngle <= normalizedEnd;
 }
 
+function lerpAngleDegrees(current: number, target: number, alpha: number) {
+  return normalizeAngleDegrees(
+    current + normalizeAngleDegrees(target - current) * alpha,
+  );
+}
+
 export function lerpPose(current: JointPose, target: JointPose, alpha: number): JointPose {
   return JOINT_DEFINITIONS.reduce((pose, joint) => {
-    pose[joint.id] = THREE.MathUtils.lerp(current[joint.id], target[joint.id], alpha);
+    pose[joint.id] = lerpAngleDegrees(current[joint.id], target[joint.id], alpha);
     return pose;
   }, {} as JointPose);
 }
