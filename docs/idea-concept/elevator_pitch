@@ -1,0 +1,13 @@
+Problem
+Robotik scheitert nicht an der Technik, sondern an der Finanzierung — und zwar an drei Fronten gleichzeitig:
+Der Mittelständler will automatisieren, aber seit IFRS 16 landet jeder Leasingvertrag als Schuld in der Bilanz. 10 Roboter = 300.000 € neue Verbindlichkeiten, Rating rutscht, Hausbank kürzt den Kontokorrent. Produktivitätsgewinn gegen Kreditwürdigkeit — kein CFO macht diesen Deal.
+Software-Anbieter wie Sereact könnten Pay-per-Pick anbieten, müssten dafür aber selbst Roboter kaufen und vermieten — und werden damit von einer Software-Firma zur Bank.
+Banken würden finanzieren, können aber den Restwert eines Roboters nach drei Jahren Schwerbetrieb nicht messen. Also: pauschaler Risikoaufschlag oder Absage.
+Technologie, Kapital, Nachfrage — alles da. Es fehlt die Leitung dazwischen.
+Lösung
+Unifi ist diese Leitung. Eine horizontale Finanz-Infrastruktur, die Roboter-Telemetrie in bankenfähige Finanzdaten übersetzt. Drei Outputs: Kosten pro Pick, Robot Credit Score mit Restwert in Echtzeit, RaaS-Konfigurator mit Bilanz-Simulation.
+Vor Visa musste jeder Händler selbst zur Bank werden. Unifi ist das Visa-Netzwerk für automatisierte Arbeit.
+Wir bauen nicht RaaS. Wir ermöglichen RaaS — für jeden Integrator, jeden Software-Anbieter, jede Leasingbank.
+Warum jetzt
+Vier Kräfte treffen sich 2026: Pick-and-Place-Robotik ist Commodity geworden. IFRS 16 wirkt seit sieben Jahren und der Schmerz kumuliert mit jedem neuen Vertrag. Hohe Zinsen machen Off-Balance-Sheet-Finanzierung überlebenswichtig statt kosmetisch. Und die neue Software-Generation skaliert genau jetzt in RaaS-Modelle — und braucht diesen Finanz-Layer.
+Wer jetzt den Layer baut definiert den Standard.
