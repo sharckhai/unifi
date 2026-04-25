@@ -90,7 +90,7 @@ def test_pricing_curve_heavy_costs_more_than_light_at_top_of_range():
 def test_pricing_curve_scales_with_wear_multiplier_within_class():
     curve = get_pricing_history("UR5", "heavy", "monthly")
     multipliers = [p.wear_rate_multiplier for p in curve.points]
-    prices = [p.customer_price_eur_per_pick for p in curve.points]
+    prices = [p.eur_per_pick for p in curve.points]
     assert multipliers == sorted(multipliers)
     assert prices == sorted(prices)
 

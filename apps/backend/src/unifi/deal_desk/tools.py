@@ -17,7 +17,7 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
-from unifi.cost.engine import compute_cost_per_pick, compute_customer_pricing
+from unifi.cost.engine import compute_cost_per_pick
 from unifi.deal_desk import catalog
 from unifi.deal_desk.schema import (
     Inquiry,
@@ -40,6 +40,44 @@ class ToolSession:
     client: genai.Client
     model: str
     robots_listed: bool = False
+
+
+_INQUIRY_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "customer_name": types.Schema(type=types.Type.STRING),
+        "industry": types.Schema(type=types.Type.STRING),
+        "fleet_size": types.Schema(type=types.Type.INTEGER),
+        "weight_mix": types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "light_share": types.Schema(type=types.Type.NUMBER),
+                "medium_share": types.Schema(type=types.Type.NUMBER),
+                "heavy_share": types.Schema(type=types.Type.NUMBER),
+            },
+            required=["light_share", "medium_share", "heavy_share"],
+        ),
+        "expected_picks_per_month": types.Schema(type=types.Type.INTEGER),
+        "seasonality": types.Schema(type=types.Type.STRING),
+        "term_preference_months": types.Schema(type=types.Type.INTEGER),
+        "flexibility_priority": types.Schema(
+            type=types.Type.STRING,
+            enum=["low", "medium", "high"],
+        ),
+        "notes": types.Schema(type=types.Type.STRING),
+    },
+    required=[
+        "customer_name",
+        "industry",
+        "fleet_size",
+        "weight_mix",
+        "expected_picks_per_month",
+        "seasonality",
+        "term_preference_months",
+        "flexibility_priority",
+        "notes",
+    ],
+)
 
 
 _PRICING_GRID: dict[str, dict[str, list[float] | float]] = {
@@ -74,7 +112,7 @@ def analyze_pdf_inquiry(pdf_path: str, session: ToolSession) -> Inquiry:
         ],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=Inquiry,
+            response_schema=_INQUIRY_SCHEMA,
         ),
     )
     return Inquiry.model_validate_json(response.text)
@@ -127,26 +165,23 @@ def get_pricing_history(
             wear_rate_multiplier=multiplier,
             motor_load_ratio_max=motor_load_ratio_max,
         )
-        pricing = compute_customer_pricing(cost=cost)
         points.append(
             PricingPoint(
                 wear_rate_multiplier=multiplier,
-                production_cost_eur_per_pick=cost.total_eur,
-                customer_price_eur_per_pick=pricing.customer_price_eur_per_pick,
+                eur_per_pick=cost.total_eur,
             )
         )
 
-    customer_prices = [p.customer_price_eur_per_pick for p in points]
-    sorted_prices = sorted(customer_prices)
-    median = sorted_prices[len(sorted_prices) // 2]
+    prices = sorted(p.eur_per_pick for p in points)
+    median = prices[len(prices) // 2]
     return PricingCurve(
         robot_name=robot_name,
         weight_class=weight_class,
         timestep_granularity=timestep,
         points=points,
         median_eur_per_pick=median,
-        range_low_eur_per_pick=min(customer_prices),
-        range_high_eur_per_pick=max(customer_prices),
+        range_low_eur_per_pick=prices[0],
+        range_high_eur_per_pick=prices[-1],
     )
 
 

@@ -34,11 +34,11 @@ class Inquiry(BaseModel):
 
     customer_name: str
     industry: str
-    fleet_size: int = Field(gt=0)
+    fleet_size: int = Field(ge=1)
     weight_mix: WeightMix
-    expected_picks_per_month: int = Field(gt=0)
+    expected_picks_per_month: int = Field(ge=1)
     seasonality: str
-    term_preference_months: int = Field(gt=0)
+    term_preference_months: int = Field(ge=1)
     flexibility_priority: FlexibilityPriority
     notes: str = ""
 
@@ -71,13 +71,18 @@ class RobotInfo(BaseModel):
 
 
 class PricingPoint(BaseModel):
-    """One operating point on the pricing curve."""
+    """One operating point on the pricing curve.
+
+    `eur_per_pick` is the all-in production cost (energy + wear + capital +
+    maintenance) — same field the frontend's pricing display uses. No service
+    fee or operator margin is applied here, so the agent's range matches the
+    app's drill-down view.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     wear_rate_multiplier: float
-    production_cost_eur_per_pick: float
-    customer_price_eur_per_pick: float
+    eur_per_pick: float
 
 
 class PricingCurve(BaseModel):
