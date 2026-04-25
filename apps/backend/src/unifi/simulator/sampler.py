@@ -23,6 +23,12 @@ Speed = Literal["fullspeed", "halfspeed"]
 # auf bewegten Frames basieren. Normale Windows haben median ~0.17.
 MIN_VELOCITY_INTENSITY: float = 0.05
 
+# Obere Schwelle für `motor_load_ratio_max` — Peak-Last-Frames im Source-Run
+# (RMS-Strom ≈ rated_current) erzeugen nach Re-Normalisierung auf größere
+# Pick-Gewichte garantiert Cap-Hits beim Wear-Multiplier. Filter sorgt dafür,
+# dass der Demo-Chart nicht durch geclippte Outlier dominiert wird.
+MAX_MOTOR_LOAD_RATIO: float = 0.92
+
 
 @dataclass(frozen=True)
 class WindowSample:
@@ -48,6 +54,7 @@ class WindowSampler:
         df = pd.read_parquet(path)
         df = df[df["split"].isin(splits)]
         df = df[df["velocity_intensity_max"] >= MIN_VELOCITY_INTENSITY]
+        df = df[df["motor_load_ratio_max"] < MAX_MOTOR_LOAD_RATIO]
         df = df.sort_values("t_start_s").reset_index(drop=True)
         feature_keys = UcsFeatures.feature_order()
         samples: list[WindowSample] = []

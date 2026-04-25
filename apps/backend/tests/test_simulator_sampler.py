@@ -119,3 +119,17 @@ def test_from_parquet_filters_zero_velocity_windows(tmp_path):
     path = _write_parquet(tmp_path, rows)
     sampler = WindowSampler.from_parquet(path)
     assert sampler.total == 2
+
+
+def test_from_parquet_filters_peak_motor_load_windows(tmp_path):
+    """Peak-Last-Frames (motor_load_ratio_max ≥ 0.92) werden ausgefiltert,
+    damit Cap-Hits nach Re-Normalisierung den Demo-Chart nicht dominieren."""
+    rows = [
+        _row(0.0, motor_load_ratio_max=0.99),  # Peak → raus
+        _row(2.0, motor_load_ratio_max=0.92),  # Schwelle (≥ 0.92) → raus
+        _row(4.0, motor_load_ratio_max=0.7),   # normal
+        _row(6.0, motor_load_ratio_max=0.5),   # normal
+    ]
+    path = _write_parquet(tmp_path, rows)
+    sampler = WindowSampler.from_parquet(path)
+    assert sampler.total == 2
