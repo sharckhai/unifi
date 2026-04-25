@@ -106,3 +106,16 @@ def test_empty_sampler_raises(tmp_path):
     path = _write_parquet(tmp_path, [_row(0.0, split="train")])
     with pytest.raises(ValueError):
         WindowSampler.from_parquet(path)
+
+
+def test_from_parquet_filters_zero_velocity_windows(tmp_path):
+    """Stillstand-Frames (velocity_intensity_max < 0.05) werden ausgefiltert."""
+    rows = [
+        _row(0.0, velocity_intensity_max=0.0),    # Stillstand
+        _row(2.0, velocity_intensity_max=0.001),  # Quasi-Stillstand
+        _row(4.0, velocity_intensity_max=0.2),    # normal
+        _row(6.0, velocity_intensity_max=0.3),    # normal
+    ]
+    path = _write_parquet(tmp_path, rows)
+    sampler = WindowSampler.from_parquet(path)
+    assert sampler.total == 2

@@ -18,6 +18,11 @@ from unifi.ucs.schema import UcsFeatures
 
 Speed = Literal["fullspeed", "halfspeed"]
 
+# Untere Schwelle für `velocity_intensity_max` — Stillstand-Frames (insb.
+# Window 0 vor Bewegungsbeginn) werden ausgefiltert, damit Demo-Picks immer
+# auf bewegten Frames basieren. Normale Windows haben median ~0.17.
+MIN_VELOCITY_INTENSITY: float = 0.05
+
 
 @dataclass(frozen=True)
 class WindowSample:
@@ -41,7 +46,9 @@ class WindowSampler:
         cls, path: Path, splits: tuple[str, ...] = ("holdout",)
     ) -> WindowSampler:
         df = pd.read_parquet(path)
-        df = df[df["split"].isin(splits)].sort_values("t_start_s").reset_index(drop=True)
+        df = df[df["split"].isin(splits)]
+        df = df[df["velocity_intensity_max"] >= MIN_VELOCITY_INTENSITY]
+        df = df.sort_values("t_start_s").reset_index(drop=True)
         feature_keys = UcsFeatures.feature_order()
         samples: list[WindowSample] = []
         for _, row in df.iterrows():

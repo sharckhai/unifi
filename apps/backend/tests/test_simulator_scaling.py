@@ -110,16 +110,48 @@ def test_payload_class_flips_at_rated_payload():
     assert heavy.payload_class == "heavy"
 
 
-def test_unscaled_fields_passthrough():
-    feats = _features()
+def test_temp_delta_scales_with_empirical_exponent():
+    """temp_delta *= mass_ratio**0.4 — empirisch aus NIST kalibriert (16 vs 45 lb)."""
+    feats = _features(temp_delta_normalized_max=0.1, temp_delta_normalized_mean=0.05)
     out = renormalize(
         feats, source_payload_lb=45, source_speed="halfspeed",
-        component_weight_kg=12.0, pick_duration_s=2.5, datasheet=UR5_DATASHEET,
+        component_weight_kg=45 * LB_TO_KG / 2,  # mass_ratio = 0.5
+        pick_duration_s=4.0, datasheet=UR5_DATASHEET,
     )
-    assert out.temp_delta_normalized_max == feats.temp_delta_normalized_max
-    assert out.temp_delta_normalized_mean == feats.temp_delta_normalized_mean
-    assert out.tracking_error_rms == feats.tracking_error_rms
-    assert out.thermal_state == feats.thermal_state
+    factor = 0.5 ** 0.4
+    assert out.temp_delta_normalized_max == pytest.approx(0.1 * factor)
+    assert out.temp_delta_normalized_mean == pytest.approx(0.05 * factor)
+
+
+def test_tracking_error_unscaled():
+    """NIST zeigt empirisch: tracking_error_rms ist last-unabhängig (Exponent 0.08)."""
+    feats = _features(tracking_error_rms=0.01)
+    out = renormalize(
+        feats, source_payload_lb=45, source_speed="halfspeed",
+        component_weight_kg=45 * LB_TO_KG / 2,
+        pick_duration_s=4.0, datasheet=UR5_DATASHEET,
+    )
+    assert out.tracking_error_rms == pytest.approx(0.01)
+
+
+def test_temp_delta_clamped_at_upper_bound():
+    """Out-of-spec mass_ratio mit 0.4-Exponent ist mild, aber Cap bleibt als Safety."""
+    feats = _features(temp_delta_normalized_max=0.5)
+    out = renormalize(
+        feats, source_payload_lb=5, source_speed="fullspeed",
+        component_weight_kg=50.0, pick_duration_s=2.0, datasheet=UR5_DATASHEET,
+    )
+    assert out.temp_delta_normalized_max <= 1.0
+
+
+def test_thermal_state_passes_through():
+    """thermal_state ist kategorial und wird nicht skaliert."""
+    feats = _features(thermal_state="cold")
+    out = renormalize(
+        feats, source_payload_lb=45, source_speed="halfspeed",
+        component_weight_kg=10.0, pick_duration_s=2.0, datasheet=UR5_DATASHEET,
+    )
+    assert out.thermal_state == "cold"
 
 
 def test_apply_random_emphasis_is_deterministic_given_seed():
