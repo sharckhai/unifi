@@ -1,11 +1,11 @@
 # Inquiry — {tech: europe}
 
 - Customer: Bela Wirtz, {tech: europe}
-- Use case: one-time trophy assembly run — three components (5 kg, 10 kg, 15 kg) need to be placed onto a base
-- Total volume: 10 000 trophies, single batch (not recurring)
-- After this batch, no further work is planned
+- Use case: trophy assembly line — three components (5 kg, 10 kg, 15 kg) need to be placed onto a base
+- Volume: ~10 000 trophy assemblies per month, ongoing
+- Seasonality: two peaks per year, around +70 % for ~6 weeks each, in May–July (sport finals) and Nov–mid Dec (year-end awards)
 
-We need this batch produced once. Please recommend a fitting robot type, the right number of robots for a sensible turnaround, an estimated project duration, and a structured offer covering price per pick, total project cost, recommended terms, and how this compares to buying or renting the equipment ourselves for a one-off run.
+We are looking for a Pay-per-Pick arrangement. Please recommend a fitting robot type, the right fleet size for this volume, a reasonable contract term, and a structured offer including price per pick, expected monthly cost, recommended contract clauses, and a comparison against classical leasing.
 
 Best regards,
 Bela Wirtz
