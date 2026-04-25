@@ -193,6 +193,125 @@ Alle Buckets innerhalb ±20 %. Heavy×fullspeed wird leicht unterschätzt — `C
 
 `GET /health` meldet Status + `model_loaded: bool`.
 
+## Trainings-Pipeline und Finanz-Werte (Provenance)
+
+Konsolidierter Überblick: was im Datensatz steckt, was wir genutzt haben, wie genau das Modell ist und wie wir aus dem Datasheet die Finanz-Werte ableiten.
+
+### NIST-Datensatz — was tatsächlich drin ist
+
+- **18 CSV-Files** (`data/nist-ur5-degradation/ur5testresult*_flat.csv`), jede ~50–85 s Sequenz bei 125 Hz Sampling → ~6.000–10.000 Telemetrie-Samples pro File.
+- **Konfigurations-Matrix:** Payload {16 lb / 7.26 kg, 45 lb / 20.41 kg} × Speed {fullspeed, halfspeed} × Coldstart {ja (nur 45 lb), nein} × 3 Wiederholungen.
+- **Sensoren pro File:** 73 Spalten — pro Joint J1–J6: `actual_current_J*`, `actual_position_J*`, `actual_velocity_J*`, `target_torque_J*`, `joint_temperature_J*`. Plus TCP-Pose und TCP-Force.
+- **Wichtig:** NIST hat den UR5 absichtlich **über Spec** gefahren (16 lb = 1.45× rated_payload, 45 lb = 4.08× rated_payload), um in vertretbarer Zeit messbaren Verschleiß zu erzeugen. Kein In-Spec-Datapoint im Set.
+- **Keine Failure-Labels, kein RUL** — wir konstruieren Wear-Rate-Labels selbst (siehe oben).
+
+### Split: Train / Val / Holdout
+
+`build_dataset.py` fenstert alle 18 Files in 2 s-Windows (≈ 1 Cycle bei UR5-rated 2 s) → **605 Windows total**. Aufteilung:
+
+| Split | Anzahl | Quelle |
+|---|---|---|
+| `holdout` | 27 | gesamtes File `ur5testresultfullspeedpayload16lb3_flat.csv` zurückgehalten — leichter Lastpfad, fullspeed, Run 3, kein Coldstart. Wird **nicht** für Training genutzt, dient als Source-Frame für `/simulate/pick`. |
+| `train` | 462 | rest, 80 % stratifiziert nach `payload × speed × coldstart` |
+| `val` | 116 | rest, 20 % stratifiziert |
+
+**Stillstand-Filter:** Beim Lifetime-Loading filtert `WindowSampler` Windows mit `velocity_intensity_max < 0.05` aus — die ersten Windows jedes Files enthalten Roboter-Stillstand vor Cycle-Beginn, die würden den Demo-Anker verzerren.
+
+### Modell-Genauigkeit (Stand `wear_rate_lgbm.txt`, Version `bcd71ad2`)
+
+```
+n_train         462 Windows
+n_val           116 Windows
+val_rmse_log    0.081     (≈ 8 % multiplikativer Fehler im log-Space)
+val_rmse        0.757     (auf Multiplier-Skala, größter Anteil aus heavy-fullspeed-Tail)
+
+Predicted multiplier quantiles (Val):
+  p05  0.30 (Floor)   p50  0.97   p95  5.00 (Cap)
+```
+
+**Was die Bucket-Means uns sagen** (Predicted, Val): das Modell reproduziert die Anker-Logik — `light × fullspeed × warm` ≈ 1.34, `heavy × fullspeed × warm` ≈ 3.37, Verhältnis ≈ 2.5×. NIST-empirisch wäre 2.13×. Etwas zu steil, Modell überschätzt schwere Picks leicht (≈ 15 %).
+
+**Floor 0.3 / Cap 5.0:** schützt gegen LightGBM-Extrapolation außerhalb des Train-Daten-Bereichs (Train-Multiplier-Quantile p05 = 0.10, p95 = 5.59). Demo-Werte zeigen ehrlich `clipped: bool` im Endpoint-Response.
+
+### Wie kommen die Finanz-Werte zustande?
+
+Cost-per-Pick wird aus dem **Datasheet** plus **Operating-Profile** und **Modell-Output** berechnet — keine hard-codierten Preise.
+
+**Vier Cost-Komponenten** ([`unifi/cost/engine.py`](apps/backend/src/unifi/cost/engine.py)):
+
+```
+energy_eur      = power_w / 1000 · motor_load_ratio · observed_cycle_time_s · electricity_price / 3600
+wear_eur        = cost_new_eur / nominal_picks_lifetime · wear_rate_multiplier
+capital_eur     = cost_new_eur · interest_rate_per_year / nominal_picks_lifetime
+maintenance_eur = cost_new_eur · maintenance_cost_pct_per_year / picks_per_year
+total_eur       = sum
+```
+
+| Term | Quelle |
+|---|---|
+| `power_w` | `UcsDatasheet.power_consumption_w` (UR5: 150 W), Fallback Klassen-Default |
+| `cost_new_eur` | `UcsDatasheet.cost_new_eur` (UR5: 35.000 €) |
+| `nominal_picks_lifetime` | `UcsDatasheet.nominal_picks_lifetime` (UR5: 30 Mio) |
+| `electricity_price` | `FinanceConfig.electricity_price_eur_per_kwh` (Default 0.30 €/kWh, DE 2025) |
+| `interest_rate_per_year` | `FinanceConfig.interest_rate_per_year` (Default 0.05) |
+| `maintenance_cost_pct_per_year` | `UcsDatasheet.maintenance_cost_pct_per_year` (UR5: 0.05) |
+| `picks_per_year` | `OperatingProfile.resolve_picks_per_year(datasheet)` — entweder direkt gesetzt, oder aus `(s/Jahr × duty_cycle / rated_cycle_time_s) × utilization_factor` (Default 0.16) |
+| `motor_load_ratio` | dynamisch aus dem skalierten UcsFeatures-Vektor des Picks |
+| `observed_cycle_time_s` | `pick_duration_s` aus dem Frontend-Request |
+| `wear_rate_multiplier` | LightGBM-Vorhersage |
+
+**Pricing-Stack on top of Cost** ([`unifi/cost/engine.py:compute_customer_pricing`](apps/backend/src/unifi/cost/engine.py)):
+
+```
+production_cost = cost.total_eur
+service_fee     = production_cost · service_fee_pct      (Default 0.15 — UNIFI-Plattform-Gebühr)
+operator_margin = production_cost · operator_margin_pct  (Default 0.25 — Jonas-/Integrator-Marge)
+customer_price  = production_cost + service_fee + operator_margin
+```
+
+Default-Uplift: +40 % auf production_cost. UR5-Beispiel: production ≈ 0.0021 €/Pick → customer ≈ 0.0029 €/Pick.
+
+**Restwert-Engine** ([`unifi/residual/engine.py`](apps/backend/src/unifi/residual/engine.py)):
+
+```
+use_fraction      = cumulative_wear_pick_equivalents / nominal_picks_lifetime
+age_fraction      = age_years / nominal_lifetime_years   (UR5: 10, oder Klassen-Default)
+combined_decay    = max(use_fraction, age_fraction)      (clip 0..1)
+residual_floor    = cost_new · 0.05                       (Schrottwert)
+residual_primary  = cost_new · (1 − combined_decay)
+residual_value    = max(residual_floor, residual_primary)
+```
+
+`max(use, age)` — die schnellere Uhr gewinnt: ein 10-Jahre-alter UR5 ist nicht 95 % wert auch wenn kaum genutzt; ein 1-Jahre-alter mit 80 % Verschleiß auch nicht.
+
+### Live-Path: vom Frontend-Slider bis zur Antwort
+
+```
+POST /simulate/pick { component_weight_kg, pick_duration_s }
+  ↓ WindowSampler.pop()           — sequenziell aus 27 Holdout-Windows
+  ↓ renormalize(...)               — Last-Features × mass_ratio**0.5,
+  ↓                                  temp × mass_ratio**0.4 (NIST-empirisch)
+  ↓ apply_random_emphasis(...)     — boost auf 1 zufälliges Feature (1.2–2.0×)
+  ↓                                  nur für SHAP-Demo, nicht für Multiplier
+  ↓ predict_one(rescaled)          — LightGBM-Vorhersage auf un-biased Features
+  ↓ compute_cost_per_pick(...)     — Energy + Wear + Capital + Maintenance
+  ↓ compute_customer_pricing(...)  — + Service + Margin → customer_price
+  ↓ live_robot.increment(...)      — Restwert-Akkumulator
+  ↓ compute_residual_value(...)    — aktueller Restwert
+  ↓ top_k_contributions(biased)    — SHAP-Top-3 für Drill-down
+→ SimulatePickResponse mit allen drei Säulen + Pricing-Stack
+```
+
+Pipeline-Reproduktion:
+
+```bash
+cd apps/backend
+uv run python -m unifi.scripts.build_dataset    # → ur5_windows.parquet
+uv run python -m unifi.scripts.make_labels      # → ur5_labeled.parquet
+uv run python -m unifi.scripts.train_wear_rate  # → wear_rate_lgbm.txt + train_stats.json
+uv run pytest -q                                 # 153 Tests grün
+```
+
 ## Weiterführend
 
 - [`docs/idea-concept/unifi_konzept_v2.md`](docs/idea-concept/unifi_konzept_v2.md) — autoritatives Konzept (Architektur, Demo-Flow, Pitch-Story).
