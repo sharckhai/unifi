@@ -1,8 +1,10 @@
-"""FastAPI-App-Factory mit Lifespan-Loader fürs Wear-Rate-Modell.
+"""FastAPI-App-Factory mit Lifespan-Loader.
 
-Lädt beim Startup das LightGBM-Booster-Artefakt aus `artifacts/` (sofern
-vorhanden) und legt es als `app.state.booster` ab. Routen (`/health`,
-`/wear-rate/predict`) lesen daraus.
+Lädt beim Startup:
+- Default-Datasheet (UR5) als `app.state.default_datasheet`. Pflicht — ohne
+  Datasheet kein Cost-Endpoint sinnvoll.
+- LightGBM-Booster als `app.state.booster` (optional — `/wear-rate/predict`
+  und `/cost-per-pick/from-features` geben 503 wenn nicht geladen).
 """
 
 from __future__ import annotations
@@ -11,14 +13,18 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from unifi.api.routes import health, wear_rate
+from unifi.api.routes import cost_per_pick, health, wear_rate
 from unifi.core.config import get_settings
 from unifi.models.wear_rate import load
+from unifi.ucs.schema import UcsDatasheet
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    app.state.default_datasheet = UcsDatasheet.model_validate_json(
+        settings.ur5_datasheet_path.read_text()
+    )
     try:
         booster, feature_order, cat_idx, version = load(settings.artifacts_dir)
         app.state.booster = booster
@@ -36,3 +42,4 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="UNIFI Backend", version="0.1.0", lifespan=lifespan)
 app.include_router(health.router)
 app.include_router(wear_rate.router)
+app.include_router(cost_per_pick.router)

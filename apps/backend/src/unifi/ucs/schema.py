@@ -39,6 +39,7 @@ class UcsDatasheet(BaseModel):
     rated_payload_kg: float = Field(gt=0)
     nominal_duty_cycle: float = Field(default=0.8, gt=0, le=1)
     maintenance_cost_pct_per_year: float = Field(default=0.05, ge=0, le=1)
+    power_consumption_w: float | None = Field(default=None, ge=0)
 
 
 class UcsTelemetrySample(BaseModel):
