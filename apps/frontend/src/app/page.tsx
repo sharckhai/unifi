@@ -24,7 +24,9 @@ import {
   YAxis,
 } from "recharts";
 import { RobotScene } from "@/components/RobotScene";
+import { ROBOT_COLOR_THEMES } from "@/components/robot-scene/sceneSetup";
 import type { SortedCubeEvent } from "@/components/RobotScene";
+import type { RobotColorTheme } from "@/components/robot-scene/types";
 
 const telemetryData = [
   { label: "Pick 01", wear: 0.78, wearCost: 0.0058, energy: 0.005, capital: 0.0062, maintenance: 0.0038 },
@@ -61,6 +63,34 @@ const kpis = [
   { label: "Projected Lifetime", color: "#64748b", dataKey: "capital", icon: CheckCircle2 },
 ];
 
+const SELECTED_THEME_STORAGE_KEY = "unifi:selectedRobotTheme";
+const UNIFI_API_BASE_URL =
+  process.env.NEXT_PUBLIC_UNIFI_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
+
+function readInitialRobotTheme(): RobotColorTheme {
+  if (typeof window === "undefined") {
+    return ROBOT_COLOR_THEMES[0].id;
+  }
+
+  const queryTheme = new URLSearchParams(window.location.search).get("theme");
+
+  if (ROBOT_COLOR_THEMES.some((theme) => theme.id === queryTheme)) {
+    return queryTheme as RobotColorTheme;
+  }
+
+  try {
+    const storedTheme = window.localStorage.getItem(SELECTED_THEME_STORAGE_KEY);
+
+    if (ROBOT_COLOR_THEMES.some((theme) => theme.id === storedTheme)) {
+      return storedTheme as RobotColorTheme;
+    }
+  } catch {
+    // Keep the demo usable even when localStorage is unavailable.
+  }
+
+  return ROBOT_COLOR_THEMES[0].id;
+}
+
 type TelemetryPoint = (typeof telemetryData)[number];
 type LiveTelemetryPoint = Omit<TelemetryPoint, "wear" | "wearCost" | "energy" | "capital" | "maintenance"> & {
   wear: number | null;
@@ -70,7 +100,21 @@ type LiveTelemetryPoint = Omit<TelemetryPoint, "wear" | "wearCost" | "energy" | 
   maintenance: number | null;
 };
 
-type MockWearCostResponse = {
+type ApiCostBreakdown = {
+  energy_eur: number;
+  wear_eur: number;
+  capital_eur: number;
+  maintenance_eur: number;
+  total_eur: number;
+  wear_rate_multiplier: number;
+};
+
+type ApiSimulatePickResponse = {
+  wear_rate_multiplier: number;
+  cost: ApiCostBreakdown;
+};
+
+type LiveWearCostResponse = {
   pickNumber: number;
   cubeId: number;
   kind: SortedCubeEvent["kind"];
@@ -106,36 +150,46 @@ function createEmptyTelemetryPoint(point: TelemetryPoint): LiveTelemetryPoint {
   };
 }
 
-function toFixedNumber(value: number, digits: number) {
-  return Number(value.toFixed(digits));
-}
-
-function simulateWearCostPost(event: SortedCubeEvent): Promise<MockWearCostResponse> {
-  return new Promise((resolve) => {
-    window.setTimeout(() => {
-      const durationStress = Math.max(0.82, Math.min(1.18, 2.95 / event.sortDurationSeconds));
-      const loadStress = event.weightKg / 5;
-      const jitter = ((event.id % 5) - 2) * 0.025;
-      const wear = toFixedNumber(0.78 + loadStress * 1.22 + durationStress * 0.34 + jitter, 2);
-      const wearCost = toFixedNumber(0.0048 + wear * 0.0027, 4);
-      const energy = toFixedNumber(0.0042 + event.weightKg * 0.0007 + durationStress * 0.0009, 4);
-      const capital = toFixedNumber(0.0061 + wear * 0.0008, 4);
-      const maintenance = toFixedNumber(0.0034 + wear * 0.0009, 4);
-
-      resolve({
-        pickNumber: event.totalSorted,
-        cubeId: event.id,
-        kind: event.kind,
-        weightKg: event.weightKg,
-        sortDurationSeconds: event.sortDurationSeconds,
-        wear,
-        wearCost,
-        energy,
-        capital,
-        maintenance,
-      });
-    }, 280);
+async function postSimulatedPick(event: SortedCubeEvent): Promise<LiveWearCostResponse> {
+  const response = await fetch(`${UNIFI_API_BASE_URL}/simulate/pick`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      component_weight_kg: event.weightKg,
+      pick_duration_s: event.sortDurationSeconds,
+      seed: event.id,
+    }),
   });
+
+  if (!response.ok) {
+    let detail = response.statusText;
+
+    try {
+      const errorBody = (await response.json()) as { detail?: string };
+      detail = errorBody.detail ?? detail;
+    } catch {
+      // Keep the HTTP status text if the backend did not return JSON.
+    }
+
+    throw new Error(`FastAPI ${response.status}: ${detail}`);
+  }
+
+  const body = (await response.json()) as ApiSimulatePickResponse;
+
+  return {
+    pickNumber: event.totalSorted,
+    cubeId: event.id,
+    kind: event.kind,
+    weightKg: event.weightKg,
+    sortDurationSeconds: event.sortDurationSeconds,
+    wear: body.wear_rate_multiplier,
+    wearCost: body.cost.wear_eur,
+    energy: body.cost.energy_eur,
+    capital: body.cost.capital_eur,
+    maintenance: body.cost.maintenance_eur,
+  };
 }
 
 function ChartTooltip({ active, payload, label, unit = "", currency }: TooltipContentProps) {
@@ -261,41 +315,54 @@ function Sparkline({
 
 export default function Home() {
   const [sortedPickCount, setSortedPickCount] = useState(0);
+  const [selectedRobotTheme] = useState<RobotColorTheme>(() => readInitialRobotTheme());
   const [liveTelemetryData, setLiveTelemetryData] = useState<LiveTelemetryPoint[]>(() =>
     telemetryData.map(createEmptyTelemetryPoint),
   );
   const [lastRequest, setLastRequest] = useState<SortedCubeEvent | null>(null);
-  const [lastApiResult, setLastApiResult] = useState<MockWearCostResponse | null>(null);
+  const [lastApiResult, setLastApiResult] = useState<LiveWearCostResponse | null>(null);
   const [isApiPending, setIsApiPending] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
   const latestRequestIdRef = useRef(0);
+  const selectedTheme =
+    ROBOT_COLOR_THEMES.find((theme) => theme.id === selectedRobotTheme) ?? ROBOT_COLOR_THEMES[0];
+
   const handleCubeSorted = useCallback((event: SortedCubeEvent) => {
     const requestId = latestRequestIdRef.current + 1;
     latestRequestIdRef.current = requestId;
     setSortedPickCount(event.totalSorted);
     setLastRequest(event);
     setIsApiPending(true);
+    setApiError(null);
 
-    void simulateWearCostPost(event).then((response) => {
-      const telemetryIndex = (response.pickNumber - 1) % telemetryData.length;
+    void postSimulatedPick(event)
+      .then((response) => {
+        const telemetryIndex = (response.pickNumber - 1) % telemetryData.length;
 
-      setLiveTelemetryData((currentData) => {
-        const nextData = [...currentData];
-        nextData[telemetryIndex] = {
-          ...telemetryData[telemetryIndex],
-          wear: response.wear,
-          wearCost: response.wearCost,
-          energy: response.energy,
-          capital: response.capital,
-          maintenance: response.maintenance,
-        };
-        return nextData;
+        setLiveTelemetryData((currentData) => {
+          const nextData = [...currentData];
+          nextData[telemetryIndex] = {
+            ...telemetryData[telemetryIndex],
+            wear: response.wear,
+            wearCost: response.wearCost,
+            energy: response.energy,
+            capital: response.capital,
+            maintenance: response.maintenance,
+          };
+          return nextData;
+        });
+
+        if (latestRequestIdRef.current === requestId) {
+          setLastApiResult(response);
+          setIsApiPending(false);
+        }
+      })
+      .catch((error: unknown) => {
+        if (latestRequestIdRef.current === requestId) {
+          setApiError(error instanceof Error ? error.message : "FastAPI request failed.");
+          setIsApiPending(false);
+        }
       });
-
-      if (latestRequestIdRef.current === requestId) {
-        setLastApiResult(response);
-        setIsApiPending(false);
-      }
-    });
   }, []);
   const currentIndex = useMemo(
     () => (sortedPickCount === 0 ? 0 : (sortedPickCount - 1) % telemetryData.length),
@@ -345,19 +412,16 @@ export default function Home() {
             </p>
           </div>
 
-          <nav className="hidden items-center gap-5 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 md:flex" aria-label="Hauptnavigation">
-            <a className="transition hover:text-blue-600" href="#robot">Live Demo</a>
-            <Link className="transition hover:text-blue-600" href="/robots">Roboter</Link>
-            <a className="transition hover:text-blue-600" href="#pricing">Pricing</a>
-            <a className="transition hover:text-blue-600" href="#risk">Bank View</a>
-            <a className="transition hover:text-blue-600" href="#ucs">UCS</a>
-          </nav>
+          <div className="hidden flex-1 md:block" />
 
           <div className="flex items-center gap-2">
             <div className="hidden items-center gap-2 border border-blue-500/20 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600 sm:inline-flex">
               <span className="h-1.5 w-1.5 bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.85)]" />
               Live Telemetrie
             </div>
+            <Link href="/robots" className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50">
+              Roboter
+            </Link>
             <button id="ucs" type="button" className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50">
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
               Report Export
@@ -371,10 +435,11 @@ export default function Home() {
         <section className="z-10 grid min-h-0 flex-1 gap-3 p-3 lg:grid-cols-[1.55fr_0.72fr] lg:p-4">
           <section id="robot" className="relative min-h-0 overflow-hidden border border-blue-500/20 bg-white/35">
             <div className="absolute left-4 top-4 z-20 hidden border border-blue-500/20 bg-[#f7f5ef]/80 px-3 py-2 font-mono text-[10px] text-blue-700 lg:block">
-              A217:SCARA / RaaS-ASSET-04
+              {selectedTheme.label.toUpperCase()} / LIVE-ASSET
             </div>
             <RobotScene
               onCubeSorted={handleCubeSorted}
+              robotTheme={selectedRobotTheme}
               className="h-full border-0 bg-none bg-transparent shadow-none"
               canvasClassName="h-full w-full"
             />
@@ -388,8 +453,13 @@ export default function Home() {
                     {isApiPending ? "..." : `${(displayedWearFactor ?? 0).toFixed(2)} x`}
                   </div>
                   <div className="micro-label mt-1 text-blue-600">
-                    Mock POST /api/wear-cost - Pick #{Math.max(1, lastPickNumber)}
+                    POST {UNIFI_API_BASE_URL}/simulate/pick - Pick #{Math.max(1, lastPickNumber)}
                   </div>
+                  {apiError ? (
+                    <div className="mt-2 max-w-[260px] text-[10px] font-semibold text-red-600">
+                      {apiError}
+                    </div>
+                  ) : null}
                   <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-[11px] text-slate-600">
                     <div className="border border-blue-500/15 bg-white/45 px-2 py-1">
                       <span className="mr-1 text-slate-400">kg</span>

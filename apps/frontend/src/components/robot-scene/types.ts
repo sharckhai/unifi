@@ -59,6 +59,7 @@ export type SortingCube = {
   id: number;
   kind: CubeKind;
   weightKg: number;
+  size: number;
   mesh: THREE.Mesh;
   body: RapierRigidBody;
   sorted: boolean;
@@ -89,7 +90,23 @@ export type SceneActions = {
   resetCubes: () => void;
 };
 
-export type RobotColorTheme = "tesla" | "graphite" | "ice" | "copper";
+export type RobotColorTheme =
+  | "tesla"
+  | "graphite"
+  | "ice"
+  | "copper"
+  | "cobalt"
+  | "mint"
+  | "ember"
+  | "violet"
+  | "aurora"
+  | "nebula"
+  | "wasabi"
+  | "sandstorm"
+  | "abyss"
+  | "orchid"
+  | "racing"
+  | "prism";
 
 export type RobotSceneProps = {
   time?: number;

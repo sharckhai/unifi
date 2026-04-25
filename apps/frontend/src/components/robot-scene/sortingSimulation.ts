@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import {
-  CUBE_SIZE,
+  CUBE_SIZE_BY_KIND,
   CUBE_WEIGHT_KG_BY_KIND,
   GRIPPER_APPROACH_CLEARANCE,
   GRIPPER_LIFT_CLEARANCE,
@@ -128,7 +128,18 @@ export function createSortingSimulation({
   lightMaterial,
   onCubeSorted,
 }: SortingSimulationOptions) {
-  const cubeGeometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+  const cubeGeometryByKind: Record<CubeKind, THREE.BoxGeometry> = {
+    heavy: new THREE.BoxGeometry(
+      CUBE_SIZE_BY_KIND.heavy,
+      CUBE_SIZE_BY_KIND.heavy,
+      CUBE_SIZE_BY_KIND.heavy,
+    ),
+    light: new THREE.BoxGeometry(
+      CUBE_SIZE_BY_KIND.light,
+      CUBE_SIZE_BY_KIND.light,
+      CUBE_SIZE_BY_KIND.light,
+    ),
+  };
   const cubes: SortingCube[] = [];
   const starterBin = SORTING_BINS[0];
   const heavyBin = SORTING_BINS[1];
@@ -164,6 +175,7 @@ export function createSortingSimulation({
   const spawnCube = (stackIndex = 0) => {
     const kind: CubeKind = Math.random() > 0.5 ? "heavy" : "light";
     const weightKg = CUBE_WEIGHT_KG_BY_KIND[kind];
+    const cubeSize = CUBE_SIZE_BY_KIND[kind];
     const angle = THREE.MathUtils.lerp(
       starterBin.angleStart + 16,
       starterBin.angleEnd - 16,
@@ -186,14 +198,17 @@ export function createSortingSimulation({
     );
     body.enableCcd(true);
     world.createCollider(
-      RAPIER.ColliderDesc.cuboid(CUBE_SIZE * 0.5, CUBE_SIZE * 0.5, CUBE_SIZE * 0.5)
+      RAPIER.ColliderDesc.cuboid(cubeSize * 0.5, cubeSize * 0.5, cubeSize * 0.5)
         .setDensity(kind === "heavy" ? 7.4 : 1.15)
         .setFriction(0.86)
         .setRestitution(0.04),
       body,
     );
 
-    const mesh = new THREE.Mesh(cubeGeometry, kind === "heavy" ? heavyMaterial : lightMaterial);
+    const mesh = new THREE.Mesh(
+      cubeGeometryByKind[kind],
+      kind === "heavy" ? heavyMaterial : lightMaterial,
+    );
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     sceneRoot.add(mesh);
@@ -201,6 +216,7 @@ export function createSortingSimulation({
       id: cubeCounter,
       kind,
       weightKg,
+      size: cubeSize,
       mesh,
       body,
       sorted: false,
@@ -232,13 +248,13 @@ export function createSortingSimulation({
     spawnBatch();
   };
 
-  const isInsideStarter = (position: THREE.Vector3) => {
+  const isInsideStarter = (position: THREE.Vector3, cubeSize: number) => {
     const radius = Math.hypot(position.x, position.z);
     const angle = toDegrees(Math.atan2(position.x, position.z));
 
     return (
-      radius > SORTING_INNER_RADIUS + CUBE_SIZE * 0.5 &&
-      radius < SORTING_OUTER_RADIUS - CUBE_SIZE * 0.5 &&
+      radius > SORTING_INNER_RADIUS + cubeSize * 0.5 &&
+      radius < SORTING_OUTER_RADIUS - cubeSize * 0.5 &&
       isAngleBetween(angle, starterBin.angleStart, starterBin.angleEnd) &&
       position.y > 0.08 &&
       position.y < 0.82
@@ -255,7 +271,7 @@ export function createSortingSimulation({
       const velocity = cube.body.linvel();
       const speed = Math.hypot(velocity.x, velocity.y, velocity.z);
 
-      return isInsideStarter(position) && speed < 0.42;
+      return isInsideStarter(position, cube.size) && speed < 0.42;
     }) ?? null;
 
   const beginSort = (cube: SortingCube) => {

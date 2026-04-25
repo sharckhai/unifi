@@ -140,17 +140,17 @@ export function createSortingSector(bin: SortingBin) {
   const color = `#${bin.color.toString(16).padStart(6, "0")}`;
   const wallMaterial = new THREE.MeshStandardMaterial({
     color: bin.color,
-    roughness: 0.46,
-    metalness: 0.08,
+    roughness: 0.38,
+    metalness: 0.04,
     transparent: true,
-    opacity: 0.32,
+    opacity: 0.42,
   });
   const floorMaterial = new THREE.MeshStandardMaterial({
     color: bin.color,
-    roughness: 0.72,
+    roughness: 0.68,
     metalness: 0.02,
     transparent: true,
-    opacity: bin.hasBottom ? 0.16 : 0.07,
+    opacity: bin.hasBottom ? 0.26 : 0.1,
     side: THREE.DoubleSide,
   });
   const edgeMaterial = new THREE.LineBasicMaterial({
