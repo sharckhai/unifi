@@ -20,6 +20,12 @@ type RobotMaterials = {
 
 type JointVisualAxis = "x" | "y" | "z";
 
+function setMeshShadows(mesh: THREE.Mesh) {
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 function alignCylinderToAxis(mesh: THREE.Mesh, axis: JointVisualAxis) {
   if (axis === "x") {
     mesh.rotation.z = Math.PI / 2;
@@ -31,14 +37,15 @@ function alignCylinderToAxis(mesh: THREE.Mesh, axis: JointVisualAxis) {
   }
 }
 
-function createCylinderBetween(
+function createCapsuleBetween(
   start: THREE.Vector3,
   end: THREE.Vector3,
   radius: number,
   material: THREE.Material,
 ) {
   const direction = new THREE.Vector3().subVectors(end, start);
-  const geometry = new THREE.CylinderGeometry(radius, radius, direction.length(), 48);
+  const capsuleLength = Math.max(direction.length() - radius * 2, radius * 0.8);
+  const geometry = new THREE.CapsuleGeometry(radius, capsuleLength, 16, 40);
   const mesh = new THREE.Mesh(geometry, material);
 
   mesh.position.copy(start).add(end).multiplyScalar(0.5);
@@ -46,10 +53,8 @@ function createCylinderBetween(
     new THREE.Vector3(0, 1, 0),
     direction.normalize(),
   );
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
 
-  return mesh;
+  return setMeshShadows(mesh);
 }
 
 function createJointHousing(
@@ -62,22 +67,18 @@ function createJointHousing(
   const housing = new THREE.Group();
 
   const axle = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.34, radius * 0.34, depth * 1.24, 48),
+    new THREE.CylinderGeometry(radius * 0.28, radius * 0.28, depth * 1.28, 48),
     coreMaterial,
   );
   alignCylinderToAxis(axle, axis);
-  axle.castShadow = true;
-  axle.receiveShadow = true;
-  housing.add(axle);
+  housing.add(setMeshShadows(axle));
 
   const createCap = (offset: number) => {
     const cap = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius, radius * 0.88, depth * 0.2, 64),
+      new THREE.CylinderGeometry(radius, radius * 0.96, depth * 0.18, 64),
       material,
     );
     alignCylinderToAxis(cap, axis);
-    cap.castShadow = true;
-    cap.receiveShadow = true;
 
     if (axis === "x") {
       cap.position.x = offset;
@@ -87,80 +88,69 @@ function createJointHousing(
       cap.position.z = offset;
     }
 
-    return cap;
-  };
-
-  const createRing = (offset: number) => {
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(radius * 1.02, radius * 0.045, 10, 64),
-      coreMaterial,
-    );
-
-    if (axis === "x") {
-      ring.rotation.y = Math.PI / 2;
-      ring.position.x = offset;
-    } else if (axis === "y") {
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = offset;
-    } else {
-      ring.position.z = offset;
-    }
-
-    ring.castShadow = true;
-    ring.receiveShadow = true;
-    return ring;
+    return setMeshShadows(cap);
   };
 
   const positiveOffset = depth * 0.5;
   const negativeOffset = -depth * 0.5;
-  housing.add(
-    createCap(negativeOffset),
-    createCap(positiveOffset),
-    createRing(negativeOffset),
-    createRing(positiveOffset),
-  );
+  housing.add(createCap(negativeOffset), createCap(positiveOffset));
 
   const hub = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 0.42, 32, 20),
-    material,
+    new THREE.SphereGeometry(radius * 0.34, 32, 20),
+    coreMaterial,
   );
-  hub.castShadow = true;
-  hub.receiveShadow = true;
-  housing.add(hub);
+  housing.add(setMeshShadows(hub));
 
   return housing;
 }
 
-function createTool(material: THREE.Material, accentMaterial: THREE.Material): { tool: THREE.Group } & ToolRig {
+function createTool(
+  material: THREE.Material,
+  gripMaterial: THREE.Material,
+): { tool: THREE.Group } & ToolRig {
   const tool = new THREE.Group();
-  const wrist = createJointHousing(0.16, 0.24, accentMaterial, material, "y");
+  const wrist = createJointHousing(0.11, 0.16, material, gripMaterial, "y");
   tool.add(wrist);
 
-  const palm = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.14, 0.22), material);
-  palm.position.y = 0.28;
-  palm.castShadow = true;
-  palm.receiveShadow = true;
-  tool.add(palm);
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.062, 0.074, 0.22, 40),
+    material,
+  );
+  neck.position.y = 0.18;
+  tool.add(setMeshShadows(neck));
+
+  const palm = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.058, 0.34, 12, 32),
+    material,
+  );
+  palm.rotation.z = Math.PI / 2;
+  palm.position.y = 0.32;
+  tool.add(setMeshShadows(palm));
+
+  const palmAccent = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.04, 0.16, 8, 24),
+    gripMaterial,
+  );
+  palmAccent.rotation.z = Math.PI / 2;
+  palmAccent.position.y = 0.32;
+  tool.add(setMeshShadows(palmAccent));
 
   const createFinger = () => {
     const finger = new THREE.Group();
     const link = new THREE.Mesh(
-      new THREE.BoxGeometry(0.08, 0.4, 0.09),
+      new THREE.CapsuleGeometry(0.027, 0.3, 8, 24),
       material,
     );
     link.position.y = 0.2;
-    link.castShadow = true;
-    link.receiveShadow = true;
-    finger.add(link);
+    finger.add(setMeshShadows(link));
 
     const pad = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.1, 0.13),
-      accentMaterial,
+      new THREE.CapsuleGeometry(0.036, 0.1, 8, 24),
+      gripMaterial,
     );
     pad.position.y = 0.4;
-    pad.castShadow = true;
-    pad.receiveShadow = true;
-    finger.add(pad);
+    pad.rotation.z = Math.PI / 2;
+    finger.add(setMeshShadows(pad));
 
     return finger;
   };
@@ -197,10 +187,10 @@ export function buildRobotRig(materials: RobotMaterials) {
   const rig = {} as RobotRig;
 
   const basePlate = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.72, 0.82, 0.14, 72),
+    new THREE.CylinderGeometry(0.52, 0.62, 0.1, 88),
     materials.dark,
   );
-  basePlate.position.y = 0.07;
+  basePlate.position.y = 0.05;
   basePlate.receiveShadow = true;
   root.add(basePlate);
 
@@ -210,24 +200,33 @@ export function buildRobotRig(materials: RobotMaterials) {
   rig.baseYaw = baseYaw;
 
   const baseColumn = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.42, 0.52, 0.42, 64),
+    new THREE.CylinderGeometry(0.32, 0.4, 0.48, 72),
     materials.metal,
   );
-  baseColumn.position.y = 0.2;
+  baseColumn.position.y = 0.24;
   baseColumn.castShadow = true;
   baseYaw.add(baseColumn);
+
+  const frontVisor = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.072, 0.2, 8, 24),
+    materials.dark,
+  );
+  frontVisor.position.set(0, 0.36, 0.32);
+  frontVisor.rotation.z = Math.PI / 2;
+  frontVisor.rotation.x = Math.PI / 2;
+  baseYaw.add(setMeshShadows(frontVisor));
 
   const shoulderPitch = new THREE.Group();
   shoulderPitch.position.y = ROBOT_SHOULDER_HEIGHT;
   baseYaw.add(shoulderPitch);
   rig.shoulderPitch = shoulderPitch;
-  shoulderPitch.add(createJointHousing(0.32, 0.34, materials.joint, materials.dark, "z"));
+  shoulderPitch.add(createJointHousing(0.26, 0.3, materials.metal, materials.dark, "z"));
 
   shoulderPitch.add(
-    createCylinderBetween(
+    createCapsuleBetween(
       new THREE.Vector3(0, 0.18, 0),
       new THREE.Vector3(0, ROBOT_UPPER_ARM_LENGTH - 0.2, 0),
-      0.16,
+      0.13,
       materials.metal,
     ),
   );
@@ -236,13 +235,13 @@ export function buildRobotRig(materials: RobotMaterials) {
   elbowPitch.position.y = ROBOT_UPPER_ARM_LENGTH;
   shoulderPitch.add(elbowPitch);
   rig.elbowPitch = elbowPitch;
-  elbowPitch.add(createJointHousing(0.28, 0.32, materials.joint, materials.dark, "z"));
+  elbowPitch.add(createJointHousing(0.23, 0.28, materials.metal, materials.dark, "z"));
 
   elbowPitch.add(
-    createCylinderBetween(
+    createCapsuleBetween(
       new THREE.Vector3(0, 0.16, 0),
       new THREE.Vector3(0, ROBOT_FOREARM_LENGTH - 0.18, 0),
-      0.13,
+      0.105,
       materials.metal,
     ),
   );
@@ -251,13 +250,13 @@ export function buildRobotRig(materials: RobotMaterials) {
   wrist1Pitch.position.y = ROBOT_FOREARM_LENGTH;
   elbowPitch.add(wrist1Pitch);
   rig.wrist1Pitch = wrist1Pitch;
-  wrist1Pitch.add(createJointHousing(0.21, 0.28, materials.joint, materials.dark, "z"));
+  wrist1Pitch.add(createJointHousing(0.145, 0.2, materials.joint, materials.dark, "z"));
 
   wrist1Pitch.add(
-    createCylinderBetween(
+    createCapsuleBetween(
       new THREE.Vector3(0, 0.12, 0),
       new THREE.Vector3(0, ROBOT_WRIST_LINK_LENGTH - 0.08, 0),
-      0.09,
+      0.058,
       materials.metal,
     ),
   );
@@ -266,13 +265,20 @@ export function buildRobotRig(materials: RobotMaterials) {
   wrist2Yaw.position.y = ROBOT_WRIST_LINK_LENGTH;
   wrist1Pitch.add(wrist2Yaw);
   rig.wrist2Yaw = wrist2Yaw;
-  wrist2Yaw.add(createJointHousing(0.18, 0.26, materials.joint, materials.dark, "y"));
+  wrist2Yaw.add(createJointHousing(0.12, 0.18, materials.joint, materials.dark, "y"));
+
+  const wristSleeve = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.076, 0.064, ROBOT_WRIST_STACK_LENGTH * 0.58, 48),
+    materials.metal,
+  );
+  wristSleeve.position.y = ROBOT_WRIST_STACK_LENGTH * 0.42;
+  wrist2Yaw.add(setMeshShadows(wristSleeve));
 
   const wrist3Roll = new THREE.Group();
   wrist3Roll.position.y = ROBOT_WRIST_STACK_LENGTH;
   wrist2Yaw.add(wrist3Roll);
   rig.wrist3Roll = wrist3Roll;
-  const { tool, gripper, pinchAnchor } = createTool(materials.metal, materials.joint);
+  const { tool, gripper, pinchAnchor } = createTool(materials.metal, materials.dark);
   wrist3Roll.add(tool);
 
   return { root, rig, gripper, pinchAnchor };

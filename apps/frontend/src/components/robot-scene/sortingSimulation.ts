@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {
   CUBE_SIZE,
+  CUBE_WEIGHT_KG_BY_KIND,
   GRIPPER_APPROACH_CLEARANCE,
   GRIPPER_LIFT_CLEARANCE,
   HOME_POSE,
@@ -27,6 +28,7 @@ import type {
   RapierRigidBody,
   RapierWorld,
   SortPhase,
+  SortedCubeEvent,
   SortingCube,
 } from "./types";
 
@@ -38,6 +40,7 @@ type SortingSimulationOptions = {
   pinchAnchor: THREE.Object3D;
   heavyMaterial: THREE.Material;
   lightMaterial: THREE.Material;
+  onCubeSorted?: (event: SortedCubeEvent) => void;
 };
 
 function getBodyPosition(body: RapierRigidBody) {
@@ -45,24 +48,34 @@ function getBodyPosition(body: RapierRigidBody) {
   return new THREE.Vector3(position.x, position.y, position.z);
 }
 
-function getPhaseDuration(phase: SortPhase) {
+function getPhaseDuration(phase: SortPhase, weightKg = 1) {
+  const loadSlowdown = 1 + Math.max(0, weightKg - 1) * 0.045;
+
   switch (phase) {
     case "approach":
-      return 1.08;
+      return 1;
     case "descend":
-      return 0.5;
+      return 0.5 * loadSlowdown;
     case "lift":
-      return 0.58;
+      return 0.58 * loadSlowdown;
     case "transfer":
-      return 1.08;
+      return 0.80 * loadSlowdown;
     case "release":
       return 0.2;
   }
 }
 
+function getPoseFollowRate(phase: SortPhase) {
+  if (phase === "approach") {
+    return 5.2;
+  }
+
+  return 12;
+}
+
 function getGripperTarget(sort: ActiveSort) {
   const phaseProgress = easeInOut(
-    THREE.MathUtils.clamp(sort.phaseTime / getPhaseDuration(sort.phase), 0, 1),
+    THREE.MathUtils.clamp(sort.phaseTime / getPhaseDuration(sort.phase, sort.cube.weightKg), 0, 1),
   );
   const grabPoint = sort.grabPoint.clone();
   const approachPoint = grabPoint.clone().add(new THREE.Vector3(0, GRIPPER_APPROACH_CLEARANCE, 0));
@@ -89,7 +102,7 @@ function getGripperOpenAmount(sort: ActiveSort | null) {
   }
 
   const phaseProgress = easeInOut(
-    THREE.MathUtils.clamp(sort.phaseTime / getPhaseDuration(sort.phase), 0, 1),
+    THREE.MathUtils.clamp(sort.phaseTime / getPhaseDuration(sort.phase, sort.cube.weightKg), 0, 1),
   );
 
   switch (sort.phase) {
@@ -113,6 +126,7 @@ export function createSortingSimulation({
   pinchAnchor,
   heavyMaterial,
   lightMaterial,
+  onCubeSorted,
 }: SortingSimulationOptions) {
   const cubeGeometry = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
   const cubes: SortingCube[] = [];
@@ -124,6 +138,8 @@ export function createSortingSimulation({
   let currentPose: JointPose = { ...HOME_POSE };
   let currentGripperOpen = 1;
   let pendingPoseTarget: JointPose | null = null;
+  let totalSorted = 0;
+  let simulationTime = 0;
 
   const syncCubeMeshes = () => {
     cubes.forEach((cube) => {
@@ -147,6 +163,7 @@ export function createSortingSimulation({
 
   const spawnCube = (stackIndex = 0) => {
     const kind: CubeKind = Math.random() > 0.5 ? "heavy" : "light";
+    const weightKg = CUBE_WEIGHT_KG_BY_KIND[kind];
     const angle = THREE.MathUtils.lerp(
       starterBin.angleStart + 16,
       starterBin.angleEnd - 16,
@@ -183,6 +200,7 @@ export function createSortingSimulation({
     cubes.push({
       id: cubeCounter,
       kind,
+      weightKg,
       mesh,
       body,
       sorted: false,
@@ -203,11 +221,15 @@ export function createSortingSimulation({
     currentPose = { ...HOME_POSE };
     currentGripperOpen = 1;
     pendingPoseTarget = null;
+    totalSorted = 0;
+    simulationTime = 0;
     applyGripperToRig(gripper, currentGripperOpen);
 
     while (cubes.length > 0) {
       removeCube(cubes[0]);
     }
+
+    spawnBatch();
   };
 
   const isInsideStarter = (position: THREE.Vector3) => {
@@ -245,6 +267,7 @@ export function createSortingSimulation({
       cube,
       phase: "approach",
       phaseTime: 0,
+      startedAt: simulationTime,
       targetBin,
       grabPoint: cubePosition,
       dropPoint: targetBin.position.clone().add(new THREE.Vector3(0, 0.83, 0)),
@@ -264,6 +287,15 @@ export function createSortingSimulation({
     );
     sort.cube.body.setLinvel({ x: 0, y: -0.85, z: 0 }, true);
     sort.cube.body.setAngvel({ x: 0.2, y: 0.5, z: -0.15 }, true);
+    totalSorted += 1;
+    onCubeSorted?.({
+      id: sort.cube.id,
+      kind: sort.cube.kind,
+      weightKg: sort.cube.weightKg,
+      sortDurationSeconds: simulationTime - sort.startedAt,
+      totalSorted,
+    });
+    spawnCube();
   };
 
   const advanceSortPhase = (sort: ActiveSort) => {
@@ -301,6 +333,8 @@ export function createSortingSimulation({
   };
 
   const update = (delta: number) => {
+    simulationTime += delta;
+
     if (!activeSort) {
       const nextCube = findNextCube();
 
@@ -318,7 +352,11 @@ export function createSortingSimulation({
         currentPose,
       );
       pendingPoseTarget = poseTarget;
-      currentPose = lerpPose(currentPose, poseTarget, 1 - Math.exp(-delta * 12));
+      currentPose = lerpPose(
+        currentPose,
+        poseTarget,
+        1 - Math.exp(-delta * getPoseFollowRate(activeSort.phase)),
+      );
       currentGripperOpen = THREE.MathUtils.lerp(
         currentGripperOpen,
         getGripperOpenAmount(activeSort),
@@ -326,15 +364,15 @@ export function createSortingSimulation({
       );
     } else {
       pendingPoseTarget = null;
-      currentPose = lerpPose(currentPose, HOME_POSE, 1 - Math.exp(-delta * 3.4));
-      currentGripperOpen = THREE.MathUtils.lerp(currentGripperOpen, 1, 1 - Math.exp(-delta * 5.2));
+      currentPose = lerpPose(currentPose, HOME_POSE, 1 - Math.exp(-delta * 1.7));
+      currentGripperOpen = THREE.MathUtils.lerp(currentGripperOpen, 1, 1 - Math.exp(-delta * 3.2));
     }
 
     return { currentPose, currentGripperOpen, activeSort };
   };
 
   const completeFrame = () => {
-    if (activeSort && activeSort.phaseTime >= getPhaseDuration(activeSort.phase)) {
+    if (activeSort && activeSort.phaseTime >= getPhaseDuration(activeSort.phase, activeSort.cube.weightKg)) {
       if (pendingPoseTarget) {
         currentPose = pendingPoseTarget;
       }

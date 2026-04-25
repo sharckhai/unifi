@@ -58,6 +58,7 @@ export type RapierWorld = import("@dimforge/rapier3d-compat").World;
 export type SortingCube = {
   id: number;
   kind: CubeKind;
+  weightKg: number;
   mesh: THREE.Mesh;
   body: RapierRigidBody;
   sorted: boolean;
@@ -69,9 +70,18 @@ export type ActiveSort = {
   cube: SortingCube;
   phase: SortPhase;
   phaseTime: number;
+  startedAt: number;
   targetBin: SortingBin;
   grabPoint: THREE.Vector3;
   dropPoint: THREE.Vector3;
+};
+
+export type SortedCubeEvent = {
+  id: number;
+  kind: CubeKind;
+  weightKg: number;
+  sortDurationSeconds: number;
+  totalSorted: number;
 };
 
 export type SceneActions = {
@@ -79,10 +89,14 @@ export type SceneActions = {
   resetCubes: () => void;
 };
 
+export type RobotColorTheme = "tesla" | "graphite" | "ice" | "copper";
+
 export type RobotSceneProps = {
   time?: number;
   isPlaying?: boolean;
   onTimeChange?: (time: number) => void;
+  onCubeSorted?: (event: SortedCubeEvent) => void;
+  robotTheme?: RobotColorTheme;
   showControls?: boolean;
   className?: string;
   canvasClassName?: string;

@@ -1,20 +1,45 @@
 import * as THREE from "three";
-import type { MutableRefObject } from "react";
 import { HOME_POSE, SORTING_BINS } from "./constants";
 import { applyPoseToRig, clampPolarAngle } from "./motion";
 import { applyGripperToRig, buildRobotRig } from "./rig";
 import { addBinColliders, createSortingSector } from "./sortingBins";
 import { createSortingSimulation } from "./sortingSimulation";
-import type { RapierModule, RapierWorld, SceneActions } from "./types";
+import type {
+  RapierModule,
+  RapierWorld,
+  RobotColorTheme,
+  SceneActions,
+  SortedCubeEvent,
+} from "./types";
 
 type RobotSceneRuntime = {
   actions: SceneActions;
   cleanup: () => void;
 };
 
+type RobotMaterialPalette = {
+  id: RobotColorTheme;
+  label: string;
+  shell: number;
+  joint: number;
+  dark: number;
+};
+
+export const ROBOT_COLOR_THEMES: RobotMaterialPalette[] = [
+  { id: "tesla", label: "Tesla", shell: 0xf8fafc, joint: 0xe5e7eb, dark: 0x10141d },
+  { id: "graphite", label: "Graphite", shell: 0x202532, joint: 0x9ca3af, dark: 0x070a11 },
+  { id: "ice", label: "Ice", shell: 0xf0f9ff, joint: 0xbfe3ff, dark: 0x123047 },
+  { id: "copper", label: "Copper", shell: 0xfff7ed, joint: 0xc47a4a, dark: 0x24140f },
+];
+
+type RobotSceneOptions = {
+  robotTheme?: RobotColorTheme;
+};
+
 export async function startRobotScene(
   container: HTMLDivElement,
-  isPlayingRef: MutableRefObject<boolean>,
+  onCubeSorted?: (event: SortedCubeEvent) => void,
+  options: RobotSceneOptions = {},
 ): Promise<RobotSceneRuntime> {
   const RAPIER: RapierModule = await import("@dimforge/rapier3d-compat");
   await (RAPIER.init as (options?: object) => Promise<void>)({});
@@ -81,22 +106,27 @@ export async function startRobotScene(
   });
   sceneRoot.add(grid);
 
-  const metalMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf1f5f9,
-    roughness: 0.36,
-    metalness: 0.62,
+  const robotPalette =
+    ROBOT_COLOR_THEMES.find((theme) => theme.id === options.robotTheme) ??
+    ROBOT_COLOR_THEMES[0];
+  const metalMaterial = new THREE.MeshPhysicalMaterial({
+    color: robotPalette.shell,
+    roughness: 0.28,
+    metalness: 0.08,
+    clearcoat: 0.72,
+    clearcoatRoughness: 0.22,
   });
-  const jointMaterial = new THREE.MeshStandardMaterial({
-    color: 0xbdd0ff,
-    emissive: 0x1f55ff,
-    emissiveIntensity: 0.08,
-    roughness: 0.42,
-    metalness: 0.36,
+  const jointMaterial = new THREE.MeshPhysicalMaterial({
+    color: robotPalette.joint,
+    roughness: 0.34,
+    metalness: 0.06,
+    clearcoat: 0.5,
+    clearcoatRoughness: 0.28,
   });
   const darkMaterial = new THREE.MeshStandardMaterial({
-    color: 0x172033,
-    roughness: 0.58,
-    metalness: 0.28,
+    color: robotPalette.dark,
+    roughness: 0.48,
+    metalness: 0.18,
   });
   const heavyMaterial = new THREE.MeshStandardMaterial({
     color: 0xff6b78,
@@ -140,6 +170,7 @@ export async function startRobotScene(
     pinchAnchor,
     heavyMaterial,
     lightMaterial,
+    onCubeSorted,
   });
 
   let animationFrame = 0;
@@ -195,23 +226,20 @@ export async function startRobotScene(
     const delta = Math.min((timestamp - previousTimestamp) / 1000, 1 / 30);
     previousTimestamp = timestamp;
 
-    if (isPlayingRef.current) {
-      const state = sortingSimulation.update(delta);
-      renderPose = state.currentPose;
-      renderGripperOpen = state.currentGripperOpen;
+    const state = sortingSimulation.update(delta);
+    renderPose = state.currentPose;
+    renderGripperOpen = state.currentGripperOpen;
 
-      applyGripperToRig(gripper, renderGripperOpen);
-      applyPoseToRig(rig, renderPose);
-      sceneRoot.updateMatrixWorld(true);
+    applyGripperToRig(gripper, renderGripperOpen);
+    applyPoseToRig(rig, renderPose);
+    sceneRoot.updateMatrixWorld(true);
 
-      if (state.activeSort?.cube.grabbed) {
-        sortingSimulation.carryGrabbedCube(state.activeSort);
-      }
-
-      sortingSimulation.completeFrame();
-      world.step();
+    if (state.activeSort?.cube.grabbed) {
+      sortingSimulation.carryGrabbedCube(state.activeSort);
     }
 
+    sortingSimulation.completeFrame();
+    world.step();
     sortingSimulation.syncCubeMeshes();
     applyPoseToRig(rig, renderPose);
     applyGripperToRig(gripper, renderGripperOpen);

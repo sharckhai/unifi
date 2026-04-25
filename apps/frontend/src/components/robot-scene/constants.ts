@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { JointDefinition, JointPose, SortingBin } from "./types";
+import type { CubeKind, JointDefinition, JointPose, SortingBin } from "./types";
 
 export const TIMELINE_DURATION = 8;
 
@@ -107,6 +107,10 @@ export const HOME_POSE: JointPose = {
 
 export const SORTING_BATCH_SIZE = 6;
 export const CUBE_SIZE = 0.24;
+export const CUBE_WEIGHT_KG_BY_KIND: Record<CubeKind, number> = {
+  light: 1,
+  heavy: 5,
+};
 export const GRIPPER_OPEN_WIDTH = 0.34;
 export const GRIPPER_CLOSED_WIDTH = CUBE_SIZE + 0.04;
 export const GRIPPER_PINCH_LOCAL_Y = 0.74;
