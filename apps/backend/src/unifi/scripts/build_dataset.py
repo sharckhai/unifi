@@ -54,7 +54,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--holdout-pattern",
-        default="halfspeedpayload45lb3",
+        default="fullspeedpayload16lb3",
         help="Substring im Filename, der das Holdout-File markiert (Coldstart wird ausgenommen).",
     )
     parser.add_argument("--seed", type=int, default=42)
