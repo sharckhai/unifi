@@ -18,6 +18,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from unifi.cost.engine import compute_cost_per_pick
 from unifi.cost.schema import CostBreakdown, FinanceConfig, OperatingProfile
 from unifi.models.wear_rate import predict_one
+from unifi.residual.engine import compute_residual_value
+from unifi.residual.schema import ResidualValue, RobotState
 from unifi.simulator.scaling import apply_random_emphasis, renormalize
 from unifi.simulator.shap import ShapContribution, top_k_contributions
 from unifi.ucs.schema import UcsFeatures
@@ -61,6 +63,8 @@ class SimulatePickResponse(BaseModel):
     shap_top: list[ShapContribution]
     source: SourceInfo
     simulator: SimulatorState
+    live_robot: RobotState | None = None
+    live_residual: ResidualValue | None = None
 
 
 class SimulateResetResponse(BaseModel):
@@ -105,6 +109,14 @@ def simulate_pick(req: SimulatePickRequest, request: Request) -> SimulatePickRes
     )
     shap_top = top_k_contributions(booster, feature_order, biased, k=3)
 
+    live_robot_state: RobotState | None = None
+    live_residual: ResidualValue | None = None
+    live_robot = getattr(request.app.state, "live_robot", None)
+    if live_robot is not None:
+        live_robot.increment(multiplier, biased.cycle_intensity)
+        live_robot_state = live_robot.snapshot()
+        live_residual = compute_residual_value(datasheet=datasheet, state=live_robot_state)
+
     return SimulatePickResponse(
         wear_rate_multiplier=multiplier,
         clipped=clipped,
@@ -119,6 +131,8 @@ def simulate_pick(req: SimulatePickRequest, request: Request) -> SimulatePickRes
             speed=sample.speed,
         ),
         simulator=SimulatorState(cursor=sampler.cursor, total=sampler.total),
+        live_robot=live_robot_state,
+        live_residual=live_residual,
     )
 
 
@@ -128,4 +142,6 @@ def simulate_reset(request: Request) -> SimulateResetResponse:
     if getattr(state, "simulator", None) is None:
         raise HTTPException(status_code=503, detail="Window-Sampler nicht geladen.")
     state.simulator.reset()
+    if getattr(state, "live_robot", None) is not None:
+        state.live_robot.reset()
     return SimulateResetResponse(cursor=state.simulator.cursor, total=state.simulator.total)

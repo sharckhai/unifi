@@ -13,9 +13,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from unifi.api.routes import cost_per_pick, health, simulate, wear_rate
+from unifi.api.routes import cost_per_pick, health, residual, simulate, wear_rate
 from unifi.core.config import get_settings
 from unifi.models.wear_rate import load
+from unifi.residual.accumulator import LiveRobotState
 from unifi.simulator.sampler import WindowSampler
 from unifi.ucs.schema import UcsDatasheet
 
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI):
         )
     except (FileNotFoundError, ValueError):
         app.state.simulator = None
+    app.state.live_robot = LiveRobotState()
     yield
 
 
@@ -51,3 +53,4 @@ app.include_router(health.router)
 app.include_router(wear_rate.router)
 app.include_router(cost_per_pick.router)
 app.include_router(simulate.router)
+app.include_router(residual.router)
