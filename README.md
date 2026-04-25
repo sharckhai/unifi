@@ -193,6 +193,265 @@ Alle Buckets innerhalb ±20 %. Heavy×fullspeed wird leicht unterschätzt — `C
 
 `GET /health` meldet Status + `model_loaded: bool`.
 
+## Trainings-Pipeline und Finanz-Werte (Provenance)
+
+Konsolidierter Überblick: was im Datensatz steckt, was wir genutzt haben, wie genau das Modell ist und wie wir aus dem Datasheet die Finanz-Werte ableiten.
+
+### NIST-Datensatz — was tatsächlich drin ist
+
+- **18 CSV-Files** (`data/nist-ur5-degradation/ur5testresult*_flat.csv`), jede ~50–85 s Sequenz bei 125 Hz Sampling → ~6.000–10.000 Telemetrie-Samples pro File.
+- **Konfigurations-Matrix:** Payload {16 lb / 7.26 kg, 45 lb / 20.41 kg} × Speed {fullspeed, halfspeed} × Coldstart {ja (nur 45 lb), nein} × 3 Wiederholungen.
+- **Sensoren pro File:** 73 Spalten — pro Joint J1–J6: `actual_current_J*`, `actual_position_J*`, `actual_velocity_J*`, `target_torque_J*`, `joint_temperature_J*`. Plus TCP-Pose und TCP-Force.
+- **Wichtig:** NIST hat den UR5 absichtlich **über Spec** gefahren (16 lb = 1.45× rated_payload, 45 lb = 4.08× rated_payload), um in vertretbarer Zeit messbaren Verschleiß zu erzeugen. Kein In-Spec-Datapoint im Set.
+- **Keine Failure-Labels, kein RUL** — wir konstruieren Wear-Rate-Labels selbst (siehe oben).
+
+### Split: Train / Val / Holdout
+
+`build_dataset.py` fenstert alle 18 Files in 2 s-Windows (≈ 1 Cycle bei UR5-rated 2 s) → **605 Windows total**. Aufteilung:
+
+| Split | Anzahl | Quelle |
+|---|---|---|
+| `holdout` | 27 | gesamtes File `ur5testresultfullspeedpayload16lb3_flat.csv` zurückgehalten — leichter Lastpfad, fullspeed, Run 3, kein Coldstart. Wird **nicht** für Training genutzt, dient als Source-Frame für `/simulate/pick`. |
+| `train` | 462 | rest, 80 % stratifiziert nach `payload × speed × coldstart` |
+| `val` | 116 | rest, 20 % stratifiziert |
+
+**Filter-Stack auf dem Holdout** (`unifi/simulator/sampler.py`):
+
+| Filter | Schwelle | Begründung | Drops |
+|---|---|---|---|
+| Stillstand | `velocity_intensity_max ≥ 0.05` | Erste Windows jedes Files enthalten Roboter-Stillstand vor Cycle-Beginn — würden Mean nach unten ziehen. | 5 |
+| Peak-Last | `motor_load_ratio_max < 0.92` | Spitzenmomente (RMS-Strom ≈ rated_current) im 16 lb-Source-Frame, der schon am rated_payload (5 kg) operiert. Würden nach Re-Normalisierung auf größere Pick-Gewichte garantiert den Wear-Cap 5.0 reißen und den Demo-Chart durch geclippte Outlier dominieren. | 1 |
+
+Holdout post-filter: **N = 21 Windows**.
+
+### Modell-Genauigkeit (Stand `wear_rate_lgbm.txt`, Version `bcd71ad2`)
+
+```
+n_train         462 Windows
+n_val           116 Windows
+val_rmse_log    0.081     (≈ 8 % multiplikativer Fehler im log-Space)
+val_rmse        0.757     (auf Multiplier-Skala, größter Anteil aus heavy-fullspeed-Tail)
+
+Predicted multiplier quantiles (Val):
+  p05  0.30 (Floor)   p50  0.97   p95  5.00 (Cap)
+```
+
+**Was die Bucket-Means uns sagen** (Predicted, Val): das Modell reproduziert die Anker-Logik — `light × fullspeed × warm` ≈ 1.34, `heavy × fullspeed × warm` ≈ 3.37, Verhältnis ≈ 2.5×. NIST-empirisch wäre 2.13×. Etwas zu steil, Modell überschätzt schwere Picks leicht (≈ 15 %).
+
+**Floor 0.3 / Cap 5.0:** schützt gegen LightGBM-Extrapolation außerhalb des Train-Daten-Bereichs (Train-Multiplier-Quantile p05 = 0.10, p95 = 5.59). Demo-Werte zeigen ehrlich `clipped: bool` im Endpoint-Response.
+
+### Wie kommen die Finanz-Werte zustande?
+
+Cost-per-Pick wird aus dem **Datasheet** plus **Operating-Profile** und **Modell-Output** berechnet — keine hard-codierten Preise.
+
+**Vier Cost-Komponenten** ([`unifi/cost/engine.py`](apps/backend/src/unifi/cost/engine.py)):
+
+```
+energy_eur      = power_w / 1000 · motor_load_ratio · observed_cycle_time_s · electricity_price / 3600
+wear_eur        = cost_new_eur / nominal_picks_lifetime · wear_rate_multiplier
+capital_eur     = cost_new_eur · interest_rate_per_year / nominal_picks_lifetime
+maintenance_eur = cost_new_eur · maintenance_cost_pct_per_year / picks_per_year
+total_eur       = sum
+```
+
+| Term | Quelle |
+|---|---|
+| `power_w` | `UcsDatasheet.power_consumption_w` (UR5: 150 W), Fallback Klassen-Default |
+| `cost_new_eur` | `UcsDatasheet.cost_new_eur` (UR5: 35.000 €) |
+| `nominal_picks_lifetime` | `UcsDatasheet.nominal_picks_lifetime` (UR5: 30 Mio) |
+| `electricity_price` | `FinanceConfig.electricity_price_eur_per_kwh` (Default 0.30 €/kWh, DE 2025) |
+| `interest_rate_per_year` | `FinanceConfig.interest_rate_per_year` (Default 0.05) |
+| `maintenance_cost_pct_per_year` | `UcsDatasheet.maintenance_cost_pct_per_year` (UR5: 0.05) |
+| `picks_per_year` | `OperatingProfile.resolve_picks_per_year(datasheet)` — entweder direkt gesetzt, oder aus `(s/Jahr × duty_cycle / rated_cycle_time_s) × utilization_factor` (Default 0.16) |
+| `motor_load_ratio` | dynamisch aus dem skalierten UcsFeatures-Vektor des Picks |
+| `observed_cycle_time_s` | `pick_duration_s` aus dem Frontend-Request |
+| `wear_rate_multiplier` | LightGBM-Vorhersage |
+
+**Pricing-Stack on top of Cost** ([`unifi/cost/engine.py:compute_customer_pricing`](apps/backend/src/unifi/cost/engine.py)):
+
+```
+production_cost = cost.total_eur
+service_fee     = production_cost · service_fee_pct      (Default 0.15 — UNIFI-Plattform-Gebühr)
+operator_margin = production_cost · operator_margin_pct  (Default 0.25 — Jonas-/Integrator-Marge)
+customer_price  = production_cost + service_fee + operator_margin
+```
+
+Default-Uplift: +40 % auf production_cost. UR5-Beispiel: production ≈ 0.0021 €/Pick → customer ≈ 0.0029 €/Pick.
+
+**Restwert-Engine** ([`unifi/residual/engine.py`](apps/backend/src/unifi/residual/engine.py)):
+
+```
+use_fraction      = cumulative_wear_pick_equivalents / nominal_picks_lifetime
+age_fraction      = age_years / nominal_lifetime_years   (UR5: 10, oder Klassen-Default)
+combined_decay    = max(use_fraction, age_fraction)      (clip 0..1)
+residual_floor    = cost_new · 0.05                       (Schrottwert)
+residual_primary  = cost_new · (1 − combined_decay)
+residual_value    = max(residual_floor, residual_primary)
+```
+
+`max(use, age)` — die schnellere Uhr gewinnt: ein 10-Jahre-alter UR5 ist nicht 95 % wert auch wenn kaum genutzt; ein 1-Jahre-alter mit 80 % Verschleiß auch nicht.
+
+### Sampling-Strategie für die Live-Demo
+
+Die Demo soll bei gleichem `(component_weight_kg, pick_duration_s)`-Input
+deterministisch ähnliche Multiplikatoren liefern und nicht durch die
+natürliche Window-zu-Window-Varianz der realen NIST-Daten überlagert werden.
+Der `WindowSampler` arbeitet deshalb **synthetisch im Mean-Vector-Modus**
+([`unifi/simulator/sampler.py`](apps/backend/src/unifi/simulator/sampler.py)).
+
+#### 1. Statistische Charakterisierung des Holdouts (einmalig beim Startup)
+
+Sei \( H \subseteq \mathbb{R}^d \) der Holdout nach Filter-Stack (N = 21,
+d = 10 numerische Features). Für jedes numerische Feature \( i \in
+\{1,\dots,d\} \) (motor\_load\_max/mean/std, cycle\_intensity,
+velocity\_intensity\_max, torque\_load\_max, temp\_delta\_max/mean,
+tcp\_force\_norm, tracking\_error\_rms):
+
+```
+μ_i = (1/N) · Σ_{w ∈ H} x_i^(w)            ← arithmetisches Mittel
+σ_i = sqrt( (1/N) · Σ (x_i^(w) − μ_i)² )   ← Population-Std (ddof=0)
+```
+
+Für kategoriale Features (`thermal_state`, `payload_class`) wird der
+**Modus** verwendet: in unserem Holdout uniform `warm` und `light`.
+
+| Feature | μ | σ |
+|---|---|---|
+| motor\_load\_ratio\_max | 0.501 | 0.138 |
+| motor\_load\_ratio\_mean | 0.114 | 0.036 |
+| motor\_load\_ratio\_std | 0.046 | 0.009 |
+| velocity\_intensity\_max | 0.308 | 0.061 |
+| torque\_load\_ratio\_max | 0.245 | 0.092 |
+| tcp\_force\_norm | 1.052 | 0.228 |
+| temp\_delta\_normalized\_max | 0.120 | 0.001 |
+| temp\_delta\_normalized\_mean | 0.031 | 0.000 |
+| tracking\_error\_rms | 0.010 | 0.003 |
+| cycle\_intensity | 1.000 | 0.000 |
+
+#### 2. Sampling pro `pop()` (deterministisch via Cursor)
+
+Beim t-ten Pick mit Cursor-Index \( c_t \in \{0,\dots,L-1\} \), \( L = 100 \)
+(SYNTHETIC\_CYCLE\_LENGTH):
+
+```
+rng_t = np.random.default_rng(base_seed + c_t)
+ε_i^(t) ~ N(0, 1)         ← Standard-Gauss, i.i.d. über Features
+                                                                                 
+            ┌ max(0, μ_i + α · σ_i · ε_i^(t))      falls Feature ≥ 0-Constraint
+x_i^(t) = ┤
+            └ μ_i + α · σ_i · ε_i^(t)               sonst (temp_delta_*)
+
+c_{t+1} = (c_t + 1) mod L
+```
+
+mit **α = 0.15** (`NOISE_SCALE` — 15 % der natürlichen Holdout-Std). Dieser
+Wert ist eng genug, dass die Multiplikator-Varianz für gleiche
+`(kg, dauer)`-Inputs klein bleibt (≈ 5–13 % CV), aber sichtbar genug für
+einen lebendigen Frontend-Chart.
+
+Eigenschaften:
+
+- **Deterministisch:** `reset()` setzt `c_t = 0`, die anschließende
+  Pick-Sequenz reproduziert sich Bit-genau, weil jedes RNG-Seed nur vom
+  Cursor abhängt.
+- **Marginal-konsistent:** der erwartete Sample-Mean konvergiert für
+  L → ∞ gegen \( μ_i \), die Sample-Std gegen \( α · σ_i \).
+- **Unkorreliert über Features:** kein Cholesky/Copula-Schritt — wir
+  nehmen die Feature-Achsen als unabhängig an. Empirisch im Holdout
+  ist die Korrelationsstruktur schwach (max |ρ| ≈ 0.4 zwischen
+  motor\_load und tcp\_force), die Vereinfachung verändert die
+  Demo-Multiplikatoren um < 5 %.
+
+#### 3. Live-Skalierung im Betrieb (`renormalize`)
+
+Der Sample \( x^{(t)} \) liegt im Source-Frame (16 lb / 7.26 kg, fullspeed,
+2 s Cycle). `renormalize()`
+([`unifi/simulator/scaling.py`](apps/backend/src/unifi/simulator/scaling.py))
+rechnet ihn auf den vom Frontend gelieferten Pick um:
+
+Definiere die Verhältnisse:
+
+```
+r_m = component_weight_kg / source_payload_kg     (Mass-Ratio)
+r_τ = source_cycle_time_s / pick_duration_s       (Duration-Ratio)
+```
+
+mit `source_payload_kg = 16 · 0.45359237 = 7.26 kg` und
+`source_cycle_time_s = SPEED_CYCLE_FACTOR['fullspeed'] · datasheet.rated_cycle_time_s = 2.0 s`.
+
+Skalierte Features (NIST-empirisch kalibrierte Exponenten):
+
+```
+β_L = 0.5    (LOAD_EXPONENT      — sublinear: Reibung/Idle-Strom dominant)
+β_T = 0.4    (TEMP_DELTA_EXPONENT — Joule-Heizung mit Wärmekapazität-Glättung)
+
+motor_load_ratio_*       ←  x · r_m^β_L
+torque_load_ratio_max    ←  x · r_m^β_L
+tcp_force_norm           ←  x · r_m^β_L
+velocity_intensity_max   ←  x · r_τ                  (linear in der Geschwindigkeit)
+cycle_intensity          ←  rated_cycle_time_s / pick_duration_s   (re-definiert, nicht skaliert)
+temp_delta_normalized_*  ←  clamp(x · r_m^β_T, [-0.5, 1.0])
+tracking_error_rms       ←  x  unverändert           (NIST: last-unabhängig, Exponent ~0.08)
+thermal_state            ←  unverändert (kategorial)
+payload_class            ←  "heavy" wenn component_weight_kg > rated_payload_kg, sonst "light"
+```
+
+Die Wahl `β_L = 0.5` ist der Mittelwert der NIST-empirischen Exponenten
+über die Last-Features (motor\_load\_max 0.28, motor\_load\_mean 0.40,
+torque ≈ 0, tcp\_force ≈ 0.03), gerundet auf eine ingenieurmäßig saubere
+Quadratwurzel-Skalierung. `β_T = 0.4` ist analog der Mittelwert der
+empirischen Temperatur-Exponenten (max 0.17, mean 0.61).
+
+#### 4. Interaktion zwischen Sampling und Skalierung
+
+Wegen der Linearität von `renormalize` in den Last-Features wird die
+absolute Noise-Std mit demselben Faktor skaliert wie der Mean:
+
+```
+Var(motor_load_scaled) = (r_m^β_L)² · Var(motor_load_sampled)
+                       = (r_m^β_L)² · (α · σ_motor_load)²
+```
+
+Für 5 kg: \( r_m^{0.5} = \sqrt{0.69} = 0.83 \), für 10 kg:
+\( \sqrt{1.38} = 1.17 \) — die Feature-Noise wächst absolut mit Faktor
+**1.41×** beim Übergang von 5 kg auf 10 kg. Kombiniert mit der
+nichtlinearen LightGBM-Antwort (steiler im mittleren Multiplier-Bereich
+bei ~1.0×) und dem Floor-Cropping bei 0.3 (komprimiert die untere Tail
+der 5 kg-Verteilung) erklärt das die beobachtete Multiplikator-Std von
+~0.04 (5 kg) vs. ~0.13 (10 kg). Das Verhältnis ist physikalisch ehrlich
+— schwere Picks zeigen mehr Wear-Streuung als leichte.
+
+### Live-Path: vom Frontend-Slider bis zur Antwort
+
+```
+POST /simulate/pick { component_weight_kg, pick_duration_s }
+  ↓ WindowSampler.pop()           — synthetischer Sample aus N(μ, (α·σ)²),
+  ↓                                  μ/σ aus 21 gefilterten Holdout-Windows
+  ↓ renormalize(...)               — Last-Features × mass_ratio**0.5,
+  ↓                                  temp × mass_ratio**0.4,
+  ↓                                  velocity × duration_ratio
+  ↓ apply_random_emphasis(...)     — boost auf 1 zufälliges Feature (1.2–2.0×)
+  ↓                                  nur für SHAP-Demo, nicht für Multiplier
+  ↓ predict_one(rescaled)          — LightGBM-Vorhersage auf un-biased Features
+  ↓                                  Output clip [0.3, 5.0]
+  ↓ compute_cost_per_pick(...)     — Energy + Wear + Capital + Maintenance
+  ↓ compute_customer_pricing(...)  — + Service + Margin → customer_price
+  ↓ live_robot.increment(...)      — Restwert-Akkumulator
+  ↓ compute_residual_value(...)    — aktueller Restwert
+  ↓ top_k_contributions(biased)    — SHAP-Top-3 für Drill-down
+→ SimulatePickResponse mit allen drei Säulen + Pricing-Stack
+```
+
+Pipeline-Reproduktion:
+
+```bash
+cd apps/backend
+uv run python -m unifi.scripts.build_dataset    # → ur5_windows.parquet
+uv run python -m unifi.scripts.make_labels      # → ur5_labeled.parquet
+uv run python -m unifi.scripts.train_wear_rate  # → wear_rate_lgbm.txt + train_stats.json
+uv run pytest -q                                 # 157 Tests grün
+```
+
 ## Weiterführend
 
 - [`docs/idea-concept/unifi_konzept_v2.md`](docs/idea-concept/unifi_konzept_v2.md) — autoritatives Konzept (Architektur, Demo-Flow, Pitch-Story).

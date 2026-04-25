@@ -14,6 +14,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -136,10 +137,25 @@ def _model_to_jsonable(value: Any) -> Any:
 
 
 @dataclasses.dataclass
+class StepEvent:
+    """One agent loop step — one tool call with its result or error."""
+
+    turn: int
+    name: str
+    args: dict[str, Any]
+    result_jsonable: Any | None = None
+    error: str | None = None
+
+
+StepCallback = Callable[[StepEvent], None]
+
+
+@dataclasses.dataclass
 class AgentResult:
     offer: Offer
     raw_text: str
     tool_calls: list[tuple[str, dict[str, Any]]]
+    steps: list[StepEvent] = dataclasses.field(default_factory=list)
 
 
 def load_prompt() -> str:
@@ -184,7 +200,11 @@ def _final_output_instruction() -> str:
     )
 
 
-def run_agent(pdf_path: str, settings: Settings | None = None) -> AgentResult:
+def run_agent(
+    pdf_path: str,
+    settings: Settings | None = None,
+    on_step: StepCallback | None = None,
+) -> AgentResult:
     settings = settings or get_settings()
     if settings.gemini_api_key is None:
         raise RuntimeError(
@@ -218,6 +238,7 @@ def run_agent(pdf_path: str, settings: Settings | None = None) -> AgentResult:
     ]
 
     tool_calls: list[tuple[str, dict[str, Any]]] = []
+    steps: list[StepEvent] = []
     final_text: str | None = None
 
     for turn in range(MAX_TOOL_TURNS):
@@ -247,14 +268,21 @@ def run_agent(pdf_path: str, settings: Settings | None = None) -> AgentResult:
         for fc in function_calls:
             args = dict(fc.args or {})
             tool_calls.append((fc.name, args))
+            event = StepEvent(turn=turn + 1, name=fc.name, args=args)
             try:
                 result = _dispatch_tool(fc.name, args, pdf_path, session)
-                payload = {"result": _model_to_jsonable(result)}
+                event.result_jsonable = _model_to_jsonable(result)
+                payload = {"result": event.result_jsonable}
             except dd_tools.SequencingError as exc:
-                payload = {"error": str(exc)}
+                event.error = str(exc)
+                payload = {"error": event.error}
             except Exception as exc:  # noqa: BLE001 — surface any tool error to the model
                 logger.warning("tool %s failed: %s", fc.name, exc)
-                payload = {"error": f"{type(exc).__name__}: {exc}"}
+                event.error = f"{type(exc).__name__}: {exc}"
+                payload = {"error": event.error}
+            steps.append(event)
+            if on_step is not None:
+                on_step(event)
             response_parts.append(
                 types.Part.from_function_response(name=fc.name, response=payload)
             )
@@ -275,4 +303,6 @@ def run_agent(pdf_path: str, settings: Settings | None = None) -> AgentResult:
             cleaned = cleaned[4:].lstrip()
     offer = Offer.model_validate_json(cleaned)
 
-    return AgentResult(offer=offer, raw_text=final_text, tool_calls=tool_calls)
+    return AgentResult(
+        offer=offer, raw_text=final_text, tool_calls=tool_calls, steps=steps
+    )
