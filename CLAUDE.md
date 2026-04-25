@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > Ergänzend:
 > - **`docs/research/decisions.md`** — getroffene Architektur-Beschlüsse mit Datum und Begründung (append-only). Vor einer eigenen Design-Entscheidung dort reinschauen.
 > - **`docs/research/open-questions.md`** — explizit offene Fragen der Runde 2.
-> - **`docs/idea-concept/unifi_hackathon_konzept.md`** (v1) — nur historische Referenz. Bei Widerspruch gilt v2.
+> - **`docs/idea-concept/archive/unifi_hackathon_konzept.md`** (v1) — nur historische Referenz. Bei Widerspruch gilt v2.
 
 ## Projektkontext — UNIFI
 
@@ -26,7 +26,7 @@ Drei Kernprodukte, an denen sich Domain-Modelle und UI-Flächen orientieren:
 
 Weiterer Begriff, der im Code auftauchen kann: **UCS (Unifi Certification Standard)** — einheitliches Schema für Telemetrie/Verschleiß-Metriken, auf das eingehende Roboterdaten normalisiert werden.
 
-Volltext siehe `docs/idea-concept/project-overview.md`, `docs/idea-concept/elevator_pitch`, `docs/idea-concept/unifi-pitch-chat.md`. Bei Konflikt zwischen Doku und Code ist Code autoritativ; bei Konflikt zwischen Doku und dem Pitch-Storyboard gilt `docs/idea-concept/project-overview.md`.
+Volltext siehe `docs/idea-concept/archive/project-overview.md`, `docs/idea-concept/archive/elevator_pitch`, `docs/idea-concept/archive/unifi-pitch-chat.md` (alle nach Aufräumen am 2026-04-25 ins `archive/`-Verzeichnis verschoben). Bei Konflikt zwischen Doku und Code ist Code autoritativ; bei Konflikt zwischen Doku und dem Pitch-Storyboard gilt `docs/idea-concept/archive/project-overview.md`.
 
 ## Repo-Struktur
 
