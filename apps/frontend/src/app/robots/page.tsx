@@ -24,7 +24,7 @@ type RobotCard = {
 
 const robotCards: RobotCard[] = [
   {
-    theme: "tesla",
+    theme: "white",
     assetId: "RaaS-ASSET-01",
     callSign: "Atlas Finch",
     fleetClass: "UR5 Prime",

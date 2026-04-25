@@ -88,10 +88,11 @@ export type SortedCubeEvent = {
 export type SceneActions = {
   spawnCube: () => void;
   resetCubes: () => void;
+  setSpeedMultiplier: (speedMultiplier: number) => void;
 };
 
 export type RobotColorTheme =
-  | "tesla"
+  | "white"
   | "graphite"
   | "ice"
   | "copper"
