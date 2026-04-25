@@ -1,6 +1,8 @@
 # UNIFI — Hackathon-Konzept v2
 
-**Stand: 2026-04-24 · ersetzt v1 funktional, v1 bleibt als historische Referenz in `unifi_hackathon_konzept.md`**
+**Stand: 2026-04-25 · ersetzt v1 funktional, v1 bleibt als historische Referenz in `unifi_hackathon_konzept.md`**
+
+> **Update 2026-04-25 — Primary-Datensatz-Wechsel:** Der primary-Datensatz ist von PHM Society 2021 SCARA auf **NIST UR5-Degradation** umgestellt. Begründung: echter 6-DOF-Cobot, 73 sprechende Sensor-Felder bei 125 Hz Sampling, **explizite Payload-Stratifikation (16 lb / 45 lb)** als direkter Treffer für den „variable Last"-Use-Case, offizielles UR5-Datenblatt vorhanden (kein Stellvertreter mehr nötig). Architektur-Implikationen (Pick-Detektion, Label-Konstruktion, Foreign-Datensatz-Rolle für PHM SCARA) sind im Dokument durchgezogen. Detail-Evaluation siehe `docs/research/datasets.md`.
 
 Ein funktionsfähiger Prototyp, der zeigt, wie Roboter-Telemetrie in bankenfähige Finanzdaten übersetzt wird. Zwei Hero-Views (CFO und Bank), ein UCS-Agent als Horizontalitäts-Beweis, ein Deal-Desk-Agent als Angebots-Generator. Gebaut in 24 Stunden.
 
@@ -20,20 +22,62 @@ Wir sitzen **zwischen** den Akteuren, nicht als Akteur. Daraus folgt zwingend: d
 
 ---
 
+## Stakeholder-Architektur: drei Layer, drei Bilanzen
+
+Der Pitch-Frame „Visa für Robotics-as-a-Service" trägt nur, wenn klar ist, **wer welche Bilanzposition hält** und **welcher Akteur UNIFI bezahlt**. Drei Layer, jeweils mit eigener Bilanz-Wahrheit:
+
+### Layer 1 — Endkunde (Anna, CFO der Mieter-Firma)
+
+- Zahlt **Pay-per-Pick** als Service-Gebühr.
+- **IFRS-16 trifft Anna nicht**, solange der Vertrag ein echter Service-Vertrag ist (kein identifiziertes Asset, keine Kundenkontrolle über Roboter-Einsatz, Provider entscheidet welcher Roboter welchen Pick macht). → reine OpEx, keine Bilanz-Belastung, Eigenkapitalquote unverändert, Covenants nicht gebrochen.
+- Genau das ist Annas Hauptinteresse — der „Bilanz-Vergleicher" im CFO-View ist ihre Kernzahl.
+
+### Layer 2 — Operator / Integrator (Jonas)
+
+- Betreibt die Roboter und stellt das Pay-per-Pick-Angebot. Verdient an der Marge zwischen Selbstkosten und Verkaufspreis.
+- **Bezahlt UNIFI** Plattformgebühren (Basispunkte pro Pick). Visa-Modell: der Akteur, der den Standard nutzt um sein Geschäft zu skalieren, ist auch der zahlende Kunde.
+- IFRS-16-Auswirkung hängt von der Eigentumskonstellation ab (siehe unten). Wenn er den Roboter least: Lease-Verbindlichkeit auf seiner Bilanz, **strukturell unkritisch** weil Roboter-Operations sein Kerngeschäft ist.
+
+### Layer 3 — Asset-Owner / Financier (Marie / SPV / Capital Markets)
+
+- Besitzt das Roboter-Asset, kassiert den Hardware-Cashflow-Anteil aus Pay-per-Pick.
+- **Beneficiary, nicht zahlender Kunde von UNIFI.** Profitiert von UNIFIs Live-Visibility, ohne Plattformgebühren zu zahlen — analog zum Händler bei Visa.
+- Hauptinteresse: aktueller Beleihungswert (Restwert) jedes Roboters und Cashflow-Trennung in Hardware-vs-Service-Anteil.
+
+### Drei Konstellationen — wer ist heute Asset-Owner
+
+| Konstellation | Asset-Eigentümer | Status | UNIFI-Rolle |
+|---|---|---|---|
+| **A — Integrator-Owned** | Operator (Locus, Vecna, Formic) finanziert über VC/Eigenkapital | **heutiger Markt** | Operator zahlt UNIFI für faire Pay-per-Pick-Daten + bessere Refinanzierung |
+| **B — Asset-Finance** | Bank/Leasing-Gesellschaft, Operator least | Zukunfts-Modell, durch UNIFI ermöglicht | Operator zahlt UNIFI; Bank ist Beneficiary mit Live-Asset-Visibility |
+| **C — SPV / Pool / Securitization** | Spezialgesellschaft, Investoren halten Tranchen | Skalen-Vision, langfristig | Operator zahlt UNIFI; Rating-Agenturen + Investoren konsumieren UNIFI-Daten |
+
+**Heute (A) ist Restwert primär Jonas' Kennzahl** (sein Asset, seine Abschreibung). **Mit UNIFI (B/C) wandert der Restwert-Bezug zur Bank/zum SPV** — was den Markt-Pool-Effekt erst möglich macht.
+
+### Pitch-Sprachregelung
+
+- **Hauptframe bleibt „Visa für Robotics-as-a-Service".** Niemals „Asset Finance Platform" als Headline — zu old-banking, killt Pitch-Momentum.
+- **CFO-View ist Hero (Akt 1).** Anna trägt die Hauptlast der Demo: Live-Cost-per-Pick + Bilanz-Vergleich.
+- **Bank-View ist Skalen-Beweis (Akt 3).** „Und außerdem entsteht so erstmals eine Asset-Klasse für Capital Markets" — der Wow-Closer, nicht der Hauptframe.
+- **Wer zahlt UNIFI:** Operatoren (Visa-Modell). Banken sind Beneficiaries.
+- **IFRS-16-Aufmärzen:** gilt nur für Anna. Die Lease-Verbindlichkeit wandert zum Asset-Owner und ist dort strukturell unkritisch.
+
+---
+
 ## Delta zu v1
 
 Gegenüber der ursprünglichen Konzept-Fassung haben sich nach Datensatz-Analyse und konzeptioneller Schärfung acht Punkte verändert:
 
 1. **Use-Case konkretisiert** auf Logistik/E-Commerce mit variabler Paket-Last. Dynamische Pay-per-Pick-Kosten sind nicht mehr Nebenprodukt, sondern **Kern-Pitch**.
-2. **Datensatz entschieden:** PHM Society 2021 Europe Data Challenge (SCARA-Roboter, CSEM). Lokal verfügbar, echter Industrieroboter, 51 Sensor-Felder, ~170 h Betrieb, ~170k Picks. C-MAPSS und andere Turbinen-Kandidaten sind verworfen.
+2. **Datensatz entschieden:** NIST UR5-Degradation (lokal unter `data/nist-ur5-degradation/`). 6-DOF Universal-Robots-Cobot, 73 Sensor-Felder bei 125 Hz, 18 Test-Konfigurationen × 3 Wiederholungen mit expliziter Payload-Stratifikation (16 lb / 45 lb), Speed-Stratifikation und Coldstart-Variante. C-MAPSS und andere Turbinen-Kandidaten sind verworfen; PHM Society 2021 SCARA wandert in die Foreign-Rolle (Schema-Mapping-Demo).
 3. **Zwei getrennte Modelle** statt eines kombinierten Health-Score-Modells: **Wear Rate** (pricing-relevant) und **Anomaly Detection** (health-/bank-relevant). Klare Trennung.
 4. **Anomalien werden nicht gepreist.** Das ist Hersteller-/SLA-/Garantie-Territorium. Wear Rate ist die Funktion von Betriebsintensität; Anomalie ist ein Warnsignal, nicht ein Aufschlag auf die Kundenrechnung.
 5. **Labels physikalisch motiviert**, nicht willkürlich erfunden. Basquin (Materialermüdung), Arrhenius (thermische Alterung), Zyklusrate. Im Pitch ehrlich als „physikalische Baseline, kalibriert sich mit echten Kundendaten" erklärbar.
 6. **Anomaly Detection im MVP postponed.** Im Konzept verankert, aber nicht trainiert/implementiert in den 24 h. Der Bank-View-Drilldown nutzt vorerst nur Wear-Rate-Feature-Importance.
 7. **UCS-Agent = einfacher LLM-Function-Call** für Schema-Mapping (nicht Multi-Turn-Agent mit Tool-Chain). 2–3 h Implementierungsaufwand, dafür demo-zuverlässig.
 8. **Deal-Desk-Agent = voll narrativ LLM.** Nicht Preisrechner, sondern Narrator/Berater. Generiert Bilanz-Impact-Narrative, schlägt Szenarien vor, erklärt Covenant-Wirkung. Output als strukturiertes Angebotsdokument gerendert im CFO-View.
-9. **UCS-Drop-in-Flow präzisiert.** Das Wear-Rate-Modell wird einmalig auf UCS-genormten, dimensionslosen Features trainiert — nicht auf rohen PHM-Spaltennamen. Fremde Datensätze werden per LLM-Schema-Mapping + Datasheet-Normalisierung live anwendbar, ohne Re-Training. Beim Drop-in droppt der User gleichzeitig Telemetrie (CSV) und Datasheet (CSV/JSON/PDF-Extrakt); der UCS-Agent mappt beides. Das ist der UCS-Beweis in Aktion.
-10. **Demo-Mechanik CFO-View = Hybrid-Streaming.** PHM-Historie wird als Live-Stream abgespielt; Szenario-Slider skaliert die Stream-Werte in Echtzeit (z.B. „Peak" × 1.5 auf EPOSCurrent) und schickt den modifizierten Stream durch das vor-trainierte Modell. Werte bleiben realistisch, Slider haben echten Effekt.
+9. **UCS-Drop-in-Flow präzisiert.** Das Wear-Rate-Modell wird einmalig auf UCS-genormten, dimensionslosen Features trainiert — nicht auf rohen UR5-Spaltennamen. Fremde Datensätze werden per LLM-Schema-Mapping + Datasheet-Normalisierung live anwendbar, ohne Re-Training. Beim Drop-in droppt der User gleichzeitig Telemetrie (CSV) und Datasheet (CSV/JSON/PDF-Extrakt); der UCS-Agent mappt beides. Das ist der UCS-Beweis in Aktion.
+10. **Demo-Mechanik CFO-View = Hybrid-Streaming.** UR5-NIST-Historie wird als Live-Stream abgespielt; Szenario-Slider skaliert die Stream-Werte in Echtzeit (z.B. „Peak" × 1.5 auf `actual_current_J{1..6}`, Umschaltung von 16-lb- auf 45-lb-Payload-Run) und schickt den modifizierten Stream durch das vor-trainierte Modell. Werte bleiben realistisch, Slider haben echten Effekt.
 
 ---
 
@@ -54,28 +98,39 @@ Jeder Pick hat eine andere mechanische Beanspruchung. Jeder Pick verbraucht eine
 
 ---
 
-## Datengrundlage: PHM Society 2021 SCARA (CSEM)
+## Datengrundlage: NIST UR5-Degradation
 
-Lokal unter `data/phm-society-2021/`. Swiss Center for Electronics and Microtechnology, Sicherungs-Sortierung mit SCARA-Arm + Feeder + Test Bench.
+Lokal unter `data/nist-ur5-degradation/`. National Institute of Standards and Technology — kontrollierte Degradations-Test-Suite auf Universal Robots UR5 (6-DOF Cobot).
 
 **Quantitativ:**
-- ~143 Files (je ~1 MB, CSV)
-- 361 Zeitfenster à 10 s pro File → ~60 min Roboterbetrieb pro File
-- Insgesamt ~170 h Betrieb, ~170k Pick-Events
-- 51 Sensor-Felder, alle Roboter-semantisch
-- Klassen-Labels pro File: `class_0` (gesund, ~106 Files) + `class_2/3/4/5/7/9/11/12` (verschiedene Fehlertypen, ~37 Files)
+- 40 Daten-CSVs (raw + flat-normalisiert), 406 MB gesamt
+- **18 Test-Konfigurationen** × 3 Wiederholungen — Stratifikation entlang **Payload {16 lb, 45 lb}** × **Speed {fullspeed, halfspeed}** × **{Coldstart, warm}**
+- ~8.6k Zeilen × 73 Spalten pro File, **125 Hz Sampling**, ~69 s pro Run
+- 73 Sensor-Felder, alle Roboter-semantisch (6-DOF Joint-Telemetrie + TCP-Pose + TCP-Wrench + Joint-Temperaturen)
+- **Keine expliziten Failure-/Klassen-Labels** — Degradation manifestiert sich implizit über (a) Run-Index 1/2/3 und (b) Coldstart vs. warm
 
-**Kern-Felder für Wear-Rate-Modell:**
-- `EPOSCurrent`, `EPOSPosition`, `EPOSVelocity` — Motor des Sortier-Conveyors
-- `SmartMotorSpeed`, `SmartMotorPositionError` — Haupt-Conveyor-Motor
-- `DurationPickToPick`, `DurationRobotFromFeederToTestBench`, `FuseCycleDuration` — Zyklus-Timings
-- `Vacuum`, `VacuumFusePicked`, `VacuumValveClosed`, `Pressure` — Sauggreifer/Pneumatik
-- `CpuTemperature`, `Temperature`, `TemperatureThermoCam` — Temperatur-Stress
-- `Humidity` — Umgebungs-Kontext
+**Kern-Felder für Wear-Rate-Modell** (alle 6 Joints J1–J6, soweit nicht anders vermerkt):
+- `actual_current_J{1..6}` (A) — primärer Last-Proxy, ersetzt funktional `EPOSCurrent`
+- `actual_position_J{1..6}`, `target_position_J{1..6}` (rad) — Positionsverlauf und Tracking-Fehler
+- `actual_velocity_J{1..6}`, `target_velocity_J{1..6}` (rad/s) — Geschwindigkeitsprofil
+- `target_torque_J{1..6}` (Nm) — Drehmoment-Sollwert
+- `joint_temperature_J{1..6}` (°C) — Temperatur-Stress pro Joint, ersetzt funktional `FuseHeatSlope`
+- `tcp_force_{x,y,z}`, `tcp_torque_{x,y,z}` — TCP-Wrench, indirekter Payload-Indikator
+- `tcp_position_{x,y,z,rx,ry,rz}` — TCP-Pose
+- `ROBOT_TIME` (s) — Zeitachse
 
-Pro Fenster bis zu sieben Aggregat-Statistiken (`vCnt`, `vFreq`, `vMax`, `vMin`, `vStd`, `vTrend`, `value`) — Feature-Engineering ist damit weitgehend vorab erledigt.
+**Pick-/Zyklus-Semantik:** UR5-NIST liefert keine native `DurationPickToPick`-Aggregation. Pick-Zyklen werden aus der Telemetrie abgeleitet (TCP-Z-Bewegung + Joint-Velocity-Muster → Pick/Drop-Detektion) und auf 10-s-Fenster aggregiert; alternativ wird der Run-Index als Pseudo-Zyklusachse genutzt.
 
-**Warum das passt:** `DurationPickToPick` ist die Zyklus-Semantik direkt eingebaut. `EPOSCurrent` ist der primäre Last-Proxy. class_0 liefert ~106 h Normal-Betriebs-Baseline, auf der sich Betriebsintensitäts-Varianz (Leicht-/Schwer-/Grenzbetrieb-Segmente) sauber identifizieren lässt.
+**Pro Fenster** werden die gleichen Aggregat-Statistiken berechnet wie zuvor auf PHM SCARA (`vCnt`, `vFreq`, `vMax`, `vMin`, `vStd`, `vTrend`, `value`) — das Feature-Engineering ist nicht datensatz-spezifisch und überträgt sich direkt.
+
+**Warum das passt:**
+- **Variable Last ist explizit in den Daten** — die Payload-Stratifikation 16 lb / 45 lb deckt direkt den „leicht vs. schwer"-Use-Case ab, ohne dass wir Last-Mix synthetisch konstruieren müssen
+- **Joint-Granularität** (6 Ströme, 6 Temperaturen) liefert reichere Wear-Rate-Features als die 1 globale Temperatur in PHM SCARA
+- **Run-Index 1/2/3** liefert eine implizite Wear-Achse: dasselbe Setup, drei aufeinanderfolgende Runs — ideale Trainingsbasis für „so sieht 'frisch' aus, so 'leicht abgenutzt'"
+- **Coldstart-Variante** trennt Anlauf-Effekte sauber von eingefahrenem Betrieb — natürlicher Arrhenius-Test
+- **Offizielles UR5-Datenblatt** liegt bei (`datasheets/`), die Datasheet-Normalisierung ist damit aus erster Hand belegt
+
+**Trainingsbasis (Äquivalent zu „class_0 in PHM SCARA"):** im MVP wird **Run 1 aller 18 Konfigurationen** als Baseline-Set behandelt (frischer Zustand), Run 2 und 3 dienen zur impliziten Degradations-Validierung. Cold-Start-Runs werden separat behandelt, um Arrhenius-Effekte zu kalibrieren.
 
 ---
 
@@ -88,7 +143,7 @@ Die wichtigste Konzept-Präzisierung gegenüber v1. Nicht ein Modell, das „Hea
 | Was misst es? | Betriebsintensität → Verschleißgeschwindigkeit | Normalverhalten ja/nein |
 | Input | Fenster-Features (Motor-Last, Zyklusrate, Temperatur) | Fenster-Features (ganzer Vektor) |
 | Output | kontinuierlicher Wear Rate Multiplier (z.B. 0.5×–3.0×) | kontinuierlicher Anomaly Score (0–1) |
-| Trainingsdaten | class_0 (gesund) — Intensitäts-Segmente | class_0 als Normal-Modell |
+| Trainingsdaten | Run-1-Set aller UR5-NIST-Konfigurationen — Intensitäts-Segmente über Payload/Speed | Run-1-Set als Normal-Modell |
 | Label-Quelle | physikalisch motivierte Heuristik | unsupervised (Autoencoder / One-Class) |
 | Was wird daraus? | Cost-per-Pick, RUL-Schätzung, Restwert | Health Score, Bank-Risiko-Signal, SLA-Trigger |
 | **Kunden-Abrechnung?** | **Ja — preisbar** | **Nein — Hersteller-/Garantie-Territorium** |
@@ -116,17 +171,19 @@ Stell dir einen **Anstrengungs-Meter** vor, der pro Pick sagt: *„dieser Pick w
 
 ### Technisch
 
-**Input:** Fenster-Features aus PHM SCARA (50+ Dimensionen nach Aggregation über alle relevanten Sensor-Felder und ihre Stats).
+**Input:** Fenster-Features aus UR5-NIST (~73 Roh-Spalten × 7 Aggregat-Statistiken nach Reduktion auf relevante Felder ≈ 60–80 Feature-Dimensionen, normalisiert auf dimensionslose UCS-Features wie `motor_load_ratio`, `cycle_intensity`, `temp_delta_normalized`).
 
 **Output:** ein Skalar — Wear Rate Multiplier relativ zu einer Baseline (z.B. 1.0× = Normalbetrieb mittlerer Last, 0.7× = Leichtbetrieb, 1.8× = Schwerbetrieb, 2.5× = Grenzlast mit Temperatur-Stress).
 
 **Label-Konstruktion (physikalisch motiviert):**
-Nicht willkürlich, sondern aus bekannten mechanischen Gesetzmäßigkeiten:
-- **Basquin-Gesetz:** Materialermüdung wächst mit Last-Exponent (typisch ×² bis ×³). → `EPOSCurrent.vMax^α` als Hauptfaktor.
-- **Arrhenius-Beziehung:** chemische und thermische Alterungsprozesse beschleunigen exponentiell mit Temperatur. → `exp(k × (Temperature.value − T_ref))` als Modulator.
-- **Zyklusrate:** kürzere Zyklen = weniger Abkühlung, dichter mechanischer Stress. → `1 / DurationPickToPick.value` als Intensitäts-Proxy.
+Nicht willkürlich, sondern aus bekannten mechanischen Gesetzmäßigkeiten — Felder konkret auf UR5-NIST gemappt:
+- **Basquin-Gesetz:** Materialermüdung wächst mit Last-Exponent (typisch ×² bis ×³). → `max(actual_current_J{1..6}).vMax^α` als Hauptfaktor (schwerstbelasteter Joint dominiert die Ermüdung).
+- **Arrhenius-Beziehung:** chemische und thermische Alterungsprozesse beschleunigen exponentiell mit Temperatur. → `exp(k × (max(joint_temperature_J{1..6}).value − T_ref))` als Modulator.
+- **Zyklusrate:** kürzere Zyklen = weniger Abkühlung, dichter mechanischer Stress. → `1 / cycle_duration_estimated.value` als Intensitäts-Proxy, wobei `cycle_duration_estimated` aus TCP-Bewegungs-Detektion oder dem Speed-Filename-Tag (`fullspeed` ≈ halbe Zyklusdauer wie `halfspeed`) abgeleitet wird.
 
-Baseline-Labels werden aus dieser Formel auf class_0-Daten berechnet. Das Modell lernt, die Formel aus den Features zu rekonstruieren **und Kombinationen zu generalisieren** (z.B. „hohe Last plus lange Pausen = Cooldown-Effekt, Wear Rate geringer als Last allein suggerieren würde"). Diese Kombinationen händisch zu modellieren wäre aufwendig und spröde — genau hier rechtfertigt sich das ML.
+Baseline-Labels werden aus dieser Formel auf der **Run-1-Trainingsbasis** berechnet (alle 18 Konfigurationen, frischer Zustand). Das Modell lernt, die Formel aus den Features zu rekonstruieren **und Kombinationen zu generalisieren** (z.B. „hohe Last plus lange Pausen = Cooldown-Effekt, Wear Rate geringer als Last allein suggerieren würde"). Diese Kombinationen händisch zu modellieren wäre aufwendig und spröde — genau hier rechtfertigt sich das ML.
+
+**Validierung:** Run 2 und Run 3 derselben Konfiguration sollten gegenüber Run 1 leicht erhöhte Wear-Rates zeigen; Coldstart-Runs sollten erhöhte Arrhenius-Komponente in den ersten Sekunden aufweisen. Beides ist im Datensatz strukturell angelegt, ohne dass externe Labels nötig sind.
 
 **Pitch-Framing:** „Unsere Baseline ist physikalisch motiviert. Sobald ein Kunde echte Run-to-Failure-Daten seiner Flotte liefert, rekalibriert das Modell und wird genauer. Die Methodik bleibt, die Genauigkeit steigt." — genau der Netzwerk-Effekt, der UNIFI als Visa-Äquivalent trägt.
 
@@ -140,11 +197,11 @@ Entscheidung fällt in Runde 2 vor Training. Feature Importance / SHAP-Output wi
 
 ## Netzwerk-Effekt: Baseline heute, klassen-spezifisches Fine-Tuning über Felddaten
 
-Das Wear-Rate-Modell ist eine **physikalisch motivierte Baseline**, keine perfekte Wahrheit. Die Annahme *„gleicher Relativ-Stress → gleicher Verschleiß"* stimmt als Näherung erster Ordnung — aber unterschiedliche Werkstoffe, Mechanismen und Versagensmodi (SCARA-Präzisionslager vs. Baxter-SEA-Torsionsfedern vs. UR-Harmonic-Drive) haben im Detail unterschiedliche Koeffizienten, die die Baseline nicht eins-zu-eins abbildet.
+Das Wear-Rate-Modell ist eine **physikalisch motivierte Baseline**, keine perfekte Wahrheit. Die Annahme *„gleicher Relativ-Stress → gleicher Verschleiß"* stimmt als Näherung erster Ordnung — aber unterschiedliche Werkstoffe, Mechanismen und Versagensmodi (UR-Harmonic-Drive vs. SCARA-Präzisionslager vs. Baxter-SEA-Torsionsfedern vs. Gantry-Linearführungen) haben im Detail unterschiedliche Koeffizienten, die die Baseline nicht eins-zu-eins abbildet.
 
 Genau deshalb ist UNIFI **als Netzwerk konzipiert**:
 
-1. **Tag 1 — Baseline.** Ein Modell, auf SCARA-Daten trainiert, physikalisch motivierte Labels. Jeder neue Roboter läuft über Datasheet-Normalisierung sofort mit — ohne Re-Training, ohne Integrationsprojekt.
+1. **Tag 1 — Baseline.** Ein Modell, auf UR5-NIST-Daten trainiert, physikalisch motivierte Labels. Jeder neue Roboter läuft über Datasheet-Normalisierung sofort mit — ohne Re-Training, ohne Integrationsprojekt.
 2. **Wachstumsphase — klassen-spezifisches Fine-Tuning.** Sobald echte Felddaten aus mehreren Roboter-Klassen (scara / cobot / parallel / gantry) reinkommen, trainieren wir pro Klasse ein feinjustiertes Modell, das die klassen-typischen Koeffizienten korrekt lernt.
 3. **Reifephase — Key-Account-Fine-Tuning.** Für Kunden mit großen Flotten und eigener Historie gibt es zusätzlich kundenspezifische Kalibrierung auf deren Nutzungsprofile.
 
@@ -157,12 +214,12 @@ Genau deshalb ist UNIFI **als Netzwerk konzipiert**:
 ## Anomaly Detection (konzeptionell, im MVP postponed)
 
 **Nicht im 24-h-Scope**, aber Teil des Zielbildes. Konkrete Überlegung:
-- **Trainingsdaten:** ausschließlich class_0. Das Modell lernt „so sieht normaler Betrieb aus".
+- **Trainingsdaten:** ausschließlich Run-1-Daten der UR5-NIST-Konfigurationen (frischer Zustand). Das Modell lernt „so sieht normaler Betrieb aus".
 - **Ansatz:** Autoencoder (Reconstruction Error als Anomaly Score) oder Isolation Forest / One-Class SVM.
-- **Validierung:** gegen class_2–12 — liefert das Modell dort erwartet hohe Anomaly Scores?
+- **Validierung:** gegen Run 2 / Run 3 derselben Konfigurationen sowie gegen Coldstart-Runs — liefert das Modell dort erwartet erhöhte Anomaly Scores? Zusatz-Validierung gegen das **PHM-SCARA-Foreign-Set** als Out-of-Distribution-Check.
 - **Wirkweg:** Anomaly Score → Health Score (Bank-View) → SLA-Trigger (Operator) → Hersteller-Feedback (Garantie-Pfad). **Nicht** → Kundenrate.
 
-Im MVP wird der Bank-View-Drilldown stattdessen SHAP-Output des Wear-Rate-Modells zeigen („warum ist der Score so wie er ist?" → „EPOSCurrent.vMax und FuseHeatSlope.vStd dominieren"). Anomaly Detection wird in einer Folge-Iteration (Post-Hackathon) ergänzt.
+Im MVP wird der Bank-View-Drilldown stattdessen SHAP-Output des Wear-Rate-Modells zeigen („warum ist der Score so wie er ist?" → „`actual_current_J3.vMax` und `joint_temperature_J5.vStd` dominieren"). Anomaly Detection wird in einer Folge-Iteration (Post-Hackathon) ergänzt.
 
 ---
 
@@ -172,33 +229,34 @@ Das Datasheet des Roboters liefert **Normalisierungs-Konstanten**, keine Wear-Mu
 
 ```json
 {
-  "model": "CSEM SCARA Sicherungs-Sorter",
-  "manufacturer": "CSEM",
-  "cost_new_eur": 120000,
-  "nominal_picks_lifetime": 50000000,
-  "rated_current_a": 3.5,
-  "rated_cycle_time_s": 2.5,
+  "model": "Universal Robots UR5",
+  "manufacturer": "Universal Robots",
+  "cost_new_eur": 35000,
+  "nominal_picks_lifetime": 30000000,
+  "rated_current_a": 6.0,
+  "rated_cycle_time_s": 2.0,
+  "rated_payload_kg": 5.0,
   "nominal_duty_cycle": 0.8
 }
 ```
 
 Diese Werte fließen:
-- in die **Normalisierung** der Modell-Inputs (`EPOSCurrent.vMax / rated_current_a` = relative Auslastung)
+- in die **Normalisierung** der Modell-Inputs (`max(actual_current_J{1..6}).vMax / rated_current_a` = relative Auslastung)
 - in die **Kapital-Komponente** der Kosten-Engine (`cost_new_eur / nominal_picks_lifetime` = nominaler Kapital-Anteil pro Pick)
 - in die **Abschreibungs-Kurve** für den Restwert
 
 Entscheidend: der Wear-Rate-Multiplier wird **nicht** aus dem Datasheet abgeleitet. Er kommt aus den Live-Betriebsdaten. Das ist der Unterschied zu einer naiven Kalkulation.
 
-**Warum das der Schlüssel zur Modell-Portabilität ist:** Das Wear-Rate-Modell wird auf **dimensionslosen UCS-Features** trainiert (`motor_load_ratio`, `cycle_intensity`, `temp_delta_normalized`) — nicht auf rohen SCARA-spezifischen Ampere-Werten. Solange für einen fremden Roboter ein Datasheet-Äquivalent existiert (rated current/torque, rated cycle time, cost new, nominal picks lifetime), landen seine Features nach der Normalisierung im selben Wertebereich wie die SCARA-Trainingsdaten. **Dasselbe vor-trainierte Modell kann dann den fremden Stream scoren, ohne Re-Training.**
+**Warum das der Schlüssel zur Modell-Portabilität ist:** Das Wear-Rate-Modell wird auf **dimensionslosen UCS-Features** trainiert (`motor_load_ratio`, `cycle_intensity`, `temp_delta_normalized`) — nicht auf rohen UR5-spezifischen Ampere-Werten. Solange für einen fremden Roboter ein Datasheet-Äquivalent existiert (rated current/torque, rated cycle time, cost new, nominal picks lifetime), landen seine Features nach der Normalisierung im selben Wertebereich wie die UR5-NIST-Trainingsdaten. **Dasselbe vor-trainierte Modell kann dann den fremden Stream scoren, ohne Re-Training.**
 
 Das ist die technische Grundlage für den UCS-Drop-in: Schema-Mapping + Datasheet-Normalisierung reichen, um einen neuen Roboter live in die Kosten-Engine zu integrieren. Der vollständige On-Stage-Flow steht weiter unten unter „Drop-in-Flow".
 
-### Konkrete Quelle im Repo: FANUC SR-3iA als Datasheet-Stellvertreter
+### Konkrete Quelle im Repo: offizielles UR5-Datenblatt
 
-Der CSEM-SCARA aus der PHM-Challenge ist anonymisiert — kein offizielles Datenblatt verfügbar. Als realer Stellvertreter gleicher Klasse (industrieller Tisch-SCARA) nutzen wir das **FANUC SR-3iA**. Damit hat das Konzept eine belastbare Datasheet-Quelle für Normalisierung und Kosten-Engine statt nur geschätzte Platzhalter.
+Mit dem Wechsel auf NIST UR5-Degradation entfällt der vorherige FANUC-Stellvertreter — das **offizielle Universal-Robots-UR5-Datenblatt liegt direkt im Datensatz** und ist die autoritative Quelle für Normalisierung und Kosten-Engine.
 
-- **PDF:** `docs/research/datasheets/fanuc-sr-3ia-datasheet.pdf`
-- **Notiz** mit Specs tabellarisch, Begründung (*warum FANUC als Stellvertreter*) und erster UCS-Mapping-Skizze: `docs/research/datasheets/fanuc-sr-3ia.md`
+- **PDF:** `data/nist-ur5-degradation/datasheets/` (UR5-Datenblatt aus dem NIST-Bundle)
+- **Specs übernehmen** (Reach, Payload, Joint-Geschwindigkeiten, Wiederholgenauigkeit, Stromaufnahme) und in `docs/research/mechanics.md` als kanonisches UR5-Profil hinterlegen — der vorherige FANUC-SR-3iA-Eintrag bleibt als historischer Stellvertreter dokumentiert, wird aber nicht mehr für die Normalisierung verwendet.
 
 ---
 
@@ -216,43 +274,59 @@ cost_per_pick =
 
 Der `wear_rate_multiplier` kommt **live aus dem Wear-Rate-Modell**, nicht aus einer Konstante. Damit variiert `cost_per_pick` mit jedem Pick, je nach aktueller Last. Genau das ist der Live-Demo-Moneyshot.
 
-### Klartext-Rechenbeispiel (SCARA, Normalbetrieb)
+### Klartext-Rechenbeispiel (UR5, Normalbetrieb)
 
-Mit Datasheet-Werten aus `mechanics.md` (Neupreis 120 k€, 50 M Picks Lebensdauer, 5 % Wartung p. a., 2 M Picks p. a., 5 % Zins):
+Mit Datasheet-Werten aus dem UR5-Profil (Neupreis 35 k€, 30 M Picks Lebensdauer, 5 % Wartung p. a., 2 M Picks p. a., 5 % Zins):
 
-- **Verschleiß nominal:** `120.000 € / 50.000.000 = 0,0024 € pro Pick`. Bei Wear-Faktor `1.5×` → `0,0036 €`, bei `2.5×` → `0,006 €`. Der ML-Teil schlägt hier genau durch.
-- **Kapital:** `(120.000 × 5 %) / 50.000.000 = 0,00012 € pro Pick`.
-- **Wartung:** `(120.000 × 5 %) / 2.000.000 = 0,003 € pro Pick`.
-- **Energie:** `0,30 €/kWh × 0,2 kW × 2 s / 3600 ≈ 0,00003 € pro Pick`. Verschwindend klein — für den Prototyp reicht **konstante Leistung aus Datasheet × Pickdauer**, keine dynamische Ableitung aus EPOSCurrent × Spannung. Der Effekt auf die Gesamtkosten ist marginal.
+- **Verschleiß nominal:** `35.000 € / 30.000.000 = 0,00117 € pro Pick`. Bei Wear-Faktor `1.5×` → `0,00175 €`, bei `2.5×` → `0,0029 €`. Der ML-Teil schlägt hier genau durch.
+- **Kapital:** `(35.000 × 5 %) / 30.000.000 = 0,00006 € pro Pick`.
+- **Wartung:** `(35.000 × 5 %) / 2.000.000 = 0,000875 € pro Pick`.
+- **Energie:** `0,30 €/kWh × 0,15 kW × 2 s / 3600 ≈ 0,000025 € pro Pick`. Verschwindend klein — für den Prototyp reicht **konstante Leistung aus Datasheet × Pickdauer**, keine dynamische Ableitung aus Joint-Strom × Spannung. Der Effekt auf die Gesamtkosten ist marginal.
 
-**Gesamt:** rund `0,007 € pro Pick` bei Normalbetrieb, rund `0,009 € pro Pick` bei Schwerbetrieb mit Wear-Faktor 1.5×. Der Wear-Anteil bewegt den Gesamtpreis spürbar, aber nicht explosiv — genau das gewünschte Verhalten für faire Preisdifferenzierung.
+**Gesamt:** rund `0,002 € pro Pick` bei Normalbetrieb, rund `0,0026 € pro Pick` bei Schwerbetrieb mit Wear-Faktor 1.5×. Der Wear-Anteil bewegt den Gesamtpreis spürbar, aber nicht explosiv — genau das gewünschte Verhalten für faire Preisdifferenzierung. (Absolute Werte sind kleiner als beim vorherigen SCARA-Beispiel, weil der UR5 günstiger in der Anschaffung ist; der Wear-Hub bleibt prozentual gleich.)
 
-**Für einen fremden Roboter** (Baxter, UR, Cobot) läuft dieselbe Rechnung mit dessen Datasheet-Werten. Der Wear-Faktor kommt aus demselben Modell; die Euro-Skalierung ist roboter-spezifisch.
+**Für einen fremden Roboter** (z.B. SCARA, FANUC-Industrie-Arm, Baxter, anderer Cobot) läuft dieselbe Rechnung mit dessen Datasheet-Werten. Der Wear-Faktor kommt aus demselben Modell; die Euro-Skalierung ist roboter-spezifisch.
 
 ---
 
-## CFO-View (Hero)
+## CFO-View (Hero — Akt 1)
 
-Der CFO der Mieter-Firma. Hier trägt die IFRS-16-Story.
+Der CFO der Mieter-Firma (Anna). Hauptbühne der Demo. Hier trägt die IFRS-16-Story — und sie gilt **ausschließlich auf dieser Layer-1-Ebene**: Annas Pay-per-Pick ist Service-Vertrag, nicht Lease, also reine OpEx ohne Bilanz-Belastung.
 
-- **Live Cost-per-Pick-Tile** — große Zahl, **tickt mit jedem Pick anders**, weil das Modell pro Fenster einen neuen Wear-Rate-Multiplier liefert. Hover zeigt Breakdown (Energie, Verschleiß, Kapital, Wartung).
+- **Live Pay-per-Pick-Tile** — große Zahl in Cent (Marktpreis, nicht Selbstkosten), **tickt mit jedem Pick anders**. Hover zeigt Hardware-Anteil vs. Service-Layer-Anteil (UNIFI-Differenzierung gegenüber Black-Box-Anbietern). Tieferes Breakdown (Energie, Verschleiß, Kapital, Wartung) ist Drilldown im Operator-View, nicht hier.
 - **Monthly Bill Preview** — akkumuliert tagaktuell, Hochrechnung auf Monatsende basierend auf historischer Last-Mix.
 - **Usage-Chart** — Picks pro Stunde, eingefärbt nach Wear-Rate-Segment (grün = Leichtbetrieb, orange = Mittel, rot = Schwerbetrieb).
-- **Bilanz-Vergleicher** — Split-Screen „IFRS-16-Leasing" (rot, Covenant-Warnung) vs. „UNIFI-Service" (grün, saubere OpEx). Moneyshot.
-- **Szenario-Slider** — Leichtbetrieb / Mittelbetrieb / Schwerbetrieb / Saisonpeak. Implementiert als **Hybrid-Demo**: PHM-Historie läuft als Stream, der Slider skaliert die Stream-Werte in Echtzeit (z.B. „Peak" multipliziert EPOSCurrent mit 1.5×, erhöht die Zyklusrate). Der modifizierte Stream fließt durchs vor-trainierte Modell, das liefert einen neuen Wear-Rate-Multiplier, die Kosten-Engine rendert die neue Zahl. Ändert **real die Modell-Inputs** (nicht nur UI-Farben) — Werte bleiben realistisch (aus echten Daten), Modell reagiert tatsächlich. Das ist der direkte Datenehrlichkeits-Beweis.
+- **Bilanz-Vergleicher** — Split-Screen „IFRS-16-Leasing" (rot, Covenant-Warnung) vs. „UNIFI-Service" (grün, saubere OpEx). Moneyshot. Klar adressiert: Annas Bilanz bleibt sauber, weil Pay-per-Pick ein Service-Vertrag ist und kein Lease — die Lease-Verbindlichkeit wandert zum Asset-Owner.
+- **Szenario-Slider** — Leichtbetrieb / Mittelbetrieb / Schwerbetrieb / Saisonpeak. Implementiert als **Hybrid-Demo**: UR5-NIST-Historie läuft als Stream, der Slider skaliert die Stream-Werte in Echtzeit (z.B. „Peak" multipliziert `actual_current_J{1..6}` mit 1.5×, erhöht die Zyklusrate, schaltet von 16-lb- auf 45-lb-Payload-Run). Der modifizierte Stream fließt durchs vor-trainierte Modell, das liefert einen neuen Wear-Rate-Multiplier, die Kosten-Engine rendert die neue Zahl. Ändert **real die Modell-Inputs** (nicht nur UI-Farben) — Werte bleiben realistisch (aus echten Daten), Modell reagiert tatsächlich. Das ist der direkte Datenehrlichkeits-Beweis.
 - **„Angebot anfragen"-Button** — triggert den Deal-Desk-Agent.
 
 ---
 
-## Bank-View
+## Bank-View (Skalen-Beweis — Akt 3)
 
-Der Financier sieht die Flotte als neue Asset-Klasse mit Echtzeit-Transparenz.
+Der Financier (Marie) sieht die Flotte als neue Asset-Klasse mit Echtzeit-Transparenz. Diese View ist im Pitch der **Closer**, nicht der Hauptframe — sie zeigt: *„und außerdem entsteht durch UNIFI erstmals eine als-Asset-Klasse-finanzierbare Robotik-Industrie".*
+
+**Wichtig fürs Pitch-Framing:** Marie ist im heutigen RaaS-Markt (Konstellation A: Integrator-Owned) nur indirekt drin — Banken finanzieren Operator-Wachstum, nicht einzelne Roboter. **Mit UNIFI wird Konstellation B (Asset-Finance) wirtschaftlich**, weil Banken erstmals einen Live-Standard für Roboter-Asset-Bewertung haben — analog zu Aircraft-Lease-Pool-Standards bei Flugzeugen oder FMS-Standards bei LKWs. Die Bank-View ist der **Demo-Beweis dieser Möglichkeit**, nicht ein Feature für heute existierende Bank-Kunden.
 
 - **Robot Credit Score** — zusammengesetzter Wert aus Wear Rate (Verbrauch) + Restwert + Cashflow-Deckung. (Im MVP: ohne Anomaly-Score-Komponente; konzeptionell vorgesehen.)
 - **Fleet-Tabelle** — alle Roboter mit Current Wear Rate, kumuliertem Verschleiß, Restwert (€), Daily Revenue, Risiko-Ampel. **Entscheidend:** differenzierter Restwert pro Roboter — Roboter #17 in Leichtbetrieb hat einen anderen Restwert als #34 in Dauer-Schwerbetrieb.
 - **Portfolio-Kennzahlen** — Collateral Value gesamt (Summe der Restwerte), gewichteter Flotten-Wear-Average, Konzentrationsrisiko.
-- **Drilldown** — Klick auf Roboter zeigt Wear-Rate-Verlauf und **SHAP-Feature-Importance** („warum ist die Wear Rate so hoch? → EPOSCurrent.vMax + FuseHeatSlope.vStd dominieren"). Das ersetzt im MVP den Anomaly-Drilldown.
-- **Cashflow-Proof** — aggregierte tägliche Pay-per-Pick-Einnahmen über die Flotte. Killer-Argument: die Raten fließen aus echtem Umsatz, nicht aus Versprechen, und sind mit der selben Telemetrie verknüpft wie der Asset-Wert.
+- **Drilldown** — Klick auf Roboter zeigt Wear-Rate-Verlauf und **SHAP-Feature-Importance** („warum ist die Wear Rate so hoch? → `actual_current_J3.vMax` + `joint_temperature_J5.vStd` dominieren"). Das ersetzt im MVP den Anomaly-Drilldown.
+- **Cashflow-Trennung** — aggregierte tägliche Pay-per-Pick-Einnahmen über die Flotte, **explizit aufgeteilt in Hardware-Cashflow (asset-backed, niedrigeres Risiko) und Service-Cashflow (operations-abhängig, höheres Risiko)**. Killer-Argument: die Raten fließen aus echtem Umsatz, nicht aus Versprechen, und sind mit derselben Telemetrie verknüpft wie der Asset-Wert. Genau diese Trennung ermöglicht differenzierte Refinanzierung im Capital-Market-Sinne.
+
+---
+
+## Operator-View (im MVP minimal — Akt 2-Brücke)
+
+Der Operator (Jonas, der Integrator/Vermieter) ist **der zahlende UNIFI-Kunde**, sein View ist im MVP bewusst klein gehalten (KPI-Kacheln + UCS-Onboarding-Button), konzeptionell aber für die Stakeholder-Logik wesentlich. Was er konzeptionell sehen würde:
+
+- **Selbstkost-Aufschlüsselung pro Pick** (Energie, Verschleiß, Kapital, Wartung) — die Zahl, aus der er sein Pay-per-Pick-Angebot baut.
+- **Service-Multiplier-Slider** — Faktor, mit dem er die Selbstkosten in den Marktpreis übersetzt (Branchen-typisch 4–15× je nach Volumen und Komplexität, Default 5×). Hier konfiguriert er Marge + Service-Layer-Aufschlag.
+- **Marge in Euro pro Pick** und auf Jahresbasis aggregiert — seine eigentliche Steuerungsgröße.
+- **UCS-Onboarding-Button** — fremde Telemetrie + Datasheet droppen, neuen Roboter integrieren.
+- *(In Konstellation A — Integrator-Owned)* zusätzlich **Asset-Buchwert / Restwert** seiner Flotte für seine eigene Bilanz und Refinanzierungs-Verhandlungen mit Banken.
+
+→ Die Selbstkosten-zu-Marktpreis-Übersetzung lebt strukturell **hier**, nicht im CFO-View. Anna sieht nur den fertigen Marktpreis. Marie sieht den Cashflow nach der Trennung in Hardware vs. Service.
 
 ---
 
@@ -272,7 +346,12 @@ Der Financier sieht die Flotte als neue Asset-Klasse mit Echtzeit-Transparenz.
 
 **Bewusst nicht:** Multi-Turn-Dialog, Tool-Chains, adaptive Datenexploration. Das würde im 24-h-Fenster Reliability kosten.
 
-**Voraussetzung demo-tauglich:** foreign-Datensatz mit **sprechenden Feldnamen** (LLM kann semantisch mappen). Top-Kandidaten: AI4I 2020 (`Torque`, `Rotational speed`, `Tool wear`), Microsoft Azure PdM (`volt`, `rotate`, `pressure`, `vibration`). Entscheidung in Runde 2.
+**Voraussetzung demo-tauglich:** foreign-Datensatz mit **sprechenden Feldnamen** (LLM kann semantisch mappen). Kandidaten:
+- **PHM Society 2021 SCARA (CSEM)** — strukturell stark anders als UR5-NIST (4-DOF Pick-Cycle-Aggregate vs. 6-DOF Joint-Stream, eingebaute `DurationPickToPick`-Semantik, class_0/class_2-12-Labels). Ergibt den schärfsten Schema-Kontrast und damit den überzeugendsten Drop-in-Moment.
+- **AI4I 2020** (`Torque`, `Rotational speed`, `Tool wear`) — generisch-industrielles Komplement, beweist „funktioniert auch außerhalb der Robotik".
+- **Microsoft Azure PdM** (`volt`, `rotate`, `pressure`, `vibration`) — Fleet-Komplement.
+
+Entscheidung in Runde 2 (`decisions.md`).
 
 ---
 
@@ -321,18 +400,19 @@ Das ist der einzige Agent im Konzept, der echte LLM-Stärken nutzt (Narrative, K
 
 - **Operator-View** bleibt minimal (KPI-Kacheln + UCS-Onboarding-Button). In 24 h bauen wir zwei Views richtig, nicht drei halb.
 - **Anomaly Detection** ist konzeptionell verankert, aber nicht trainiert. Bank-View-Drilldown nutzt vorerst Wear-Rate-SHAP.
-- **Klassisches RUL-Regression** (wie in C-MAPSS) ist verworfen — die PHM-SCARA-Daten sind keine Run-to-Failure-Trajektorien. RUL wird abgeleitet aus kumulierter Wear Rate ÷ nominaler Lifetime.
+- **Klassisches RUL-Regression** (wie in C-MAPSS) ist verworfen — die UR5-NIST-Daten sind keine Run-to-Failure-Trajektorien (~69 s Snapshots, 3 Wiederholungen pro Konfiguration). RUL wird abgeleitet aus kumulierter Wear Rate ÷ nominaler Lifetime.
 - **Video-basierte Roboter-Datasets** (ViFailback, RoboFAC, Humanoid Everyday, ARMBench) sind verworfen — Vision-Pipeline im 24-h-Fenster nicht machbar.
-- **Echte Hersteller-Datasheets** für ABB/FANUC/KUKA/UR sind optional; im MVP reicht ein einzelnes synthetisches CSEM-SCARA-Profil, das im Pitch transparent als Platzhalter genannt wird.
-- **Multi-Roboter-Flotte** wird im Bank-View simuliert (10–20 synthetisch generierte Roboter mit unterschiedlichem Nutzungsprofil, alle auf Basis des PHM-SCARA-Modells).
+- **Zusätzliche Hersteller-Datasheets** (ABB/FANUC/KUKA, weitere UR-Modelle) sind optional; im MVP reicht das offizielle UR5-Datenblatt aus dem NIST-Bundle plus 2–3 synthetische Alternativ-Profile für den Flotten-Bank-View. Synthetische Werte werden im Pitch transparent als Hackathon-Vereinfachung genannt.
+- **Multi-Roboter-Flotte** wird im Bank-View simuliert (10–20 synthetisch generierte Roboter mit unterschiedlichem Nutzungsprofil, alle auf Basis des UR5-NIST-Modells; Heterogenität entsteht über Streuung der Datasheet-Konstanten und der gestreamten Last-Profile).
 
 ---
 
 ## Offene Entscheidungen (Runde 2)
 
-- **Wahl Foreign-Datensatz** — AI4I 2020 vs. Azure PdM. Beide mit semantischen Feldnamen, beide LLM-mappbar.
+- **Wahl Foreign-Datensatz** — **PHM SCARA** (schärfster Schema-Kontrast: 4-DOF Pick-Cycle-Aggregate vs. UR5 6-DOF Joint-Stream) vs. AI4I 2020 (generisch-industriell) vs. Azure PdM (Fleet). Empfehlung: PHM SCARA als primärer Foreign, AI4I als Sekundär-Demo.
+- **Pick-Detektion in UR5-NIST** — TCP-Z-Bewegungs-Heuristik, Joint-Velocity-Muster oder Run-Index-Aggregation? Entscheidung vor Training.
 - **Wahl Wear-Rate-Modelltyp** — LightGBM + SHAP oder kleines NN + SHAP. Entscheidung vor Training.
-- **Konkrete Label-Formel** — Exponent α für Basquin, Referenz-Temperatur T_ref, Gewichtung Zyklusrate. Wird in `decisions.md` fixiert, bevor Training startet.
+- **Konkrete Label-Formel** — Exponent α für Basquin, Referenz-Temperatur T_ref, Gewichtung Zyklusrate, Aggregator über die 6 Joint-Ströme/-Temperaturen (max, mean, p95). Wird in `decisions.md` fixiert, bevor Training startet.
 - **IFRS-16-Simulator** — deterministische Python-Formel oder LLM-generierte Narrative als Teil des Deal-Desk-Agent?
 
 ---
