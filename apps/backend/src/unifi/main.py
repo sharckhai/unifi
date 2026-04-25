@@ -13,9 +13,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from unifi.api.routes import cost_per_pick, health, wear_rate
+from unifi.api.routes import cost_per_pick, health, simulate, wear_rate
 from unifi.core.config import get_settings
 from unifi.models.wear_rate import load
+from unifi.simulator.sampler import WindowSampler
 from unifi.ucs.schema import UcsDatasheet
 
 
@@ -36,6 +37,12 @@ async def lifespan(app: FastAPI):
         app.state.feature_order = None
         app.state.categorical_indices = None
         app.state.model_version = None
+    try:
+        app.state.simulator = WindowSampler.from_parquet(
+            settings.artifacts_dir / "ur5_windows.parquet"
+        )
+    except (FileNotFoundError, ValueError):
+        app.state.simulator = None
     yield
 
 
@@ -43,3 +50,4 @@ app = FastAPI(title="UNIFI Backend", version="0.1.0", lifespan=lifespan)
 app.include_router(health.router)
 app.include_router(wear_rate.router)
 app.include_router(cost_per_pick.router)
+app.include_router(simulate.router)
