@@ -170,7 +170,12 @@ def test_agent_runs_full_workflow(monkeypatch, tmp_path, fake_client_factory):
         "S", (), {"get_secret_value": lambda self: "fake"}
     )()
 
-    result = agent_mod.run_agent(str(pdf), settings=settings)
+    streamed: list[str] = []
+    result = agent_mod.run_agent(
+        str(pdf),
+        settings=settings,
+        on_step=lambda ev: streamed.append(ev.name),
+    )
 
     expected_sequence = [
         "analyze_pdf_inquiry",
@@ -181,6 +186,16 @@ def test_agent_runs_full_workflow(monkeypatch, tmp_path, fake_client_factory):
     ]
     actual_names = [name for name, _ in result.tool_calls]
     assert actual_names == expected_sequence
+
+    # AgentResult.steps mirrors tool_calls and includes per-step results.
+    step_names = [event.name for event in result.steps]
+    assert step_names == expected_sequence
+    assert all(event.error is None for event in result.steps)
+    assert all(event.result_jsonable is not None for event in result.steps)
+    assert result.steps[0].turn == 1
+
+    # on_step callback fires once per tool call, in order.
+    assert streamed == expected_sequence
 
     assert isinstance(result.offer, Offer)
     assert result.offer.header.robot_chosen == "UR5"
