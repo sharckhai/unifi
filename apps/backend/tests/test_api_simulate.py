@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from unifi.api.routes import cost_per_pick, health, simulate, wear_rate
 from unifi.models.wear_rate import TrainParams, train
 from unifi.residual.accumulator import LiveRobotState
-from unifi.simulator.sampler import WindowSampler
+from unifi.simulator.sampler import SYNTHETIC_CYCLE_LENGTH, WindowSampler
 from unifi.ucs.schema import UcsDatasheet
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -113,7 +113,7 @@ def test_simulate_pick_returns_full_breakdown(tmp_path):
     }
     assert 1.2 <= body["emphasis"]["factor"] <= 2.0
     assert body["simulator"]["cursor"] == 1
-    assert body["simulator"]["total"] == 3
+    assert body["simulator"]["total"] == SYNTHETIC_CYCLE_LENGTH
     assert body["source"]["payload_lb"] == 45
     assert body["source"]["speed"] == "halfspeed"
 
@@ -242,21 +242,24 @@ def test_simulate_reset_resets_cursor(tmp_path):
     assert r.status_code == 200
     body = r.json()
     assert body["cursor"] == 0
-    assert body["total"] == 3
+    assert body["total"] == SYNTHETIC_CYCLE_LENGTH
 
 
 def test_simulate_pick_wraps_around(tmp_path):
+    """Cursor inkrementiert pro Pick und wrappt nach SYNTHETIC_CYCLE_LENGTH."""
     app = _make_app(tmp_path, with_model=True, with_simulator=True)
     with TestClient(app) as client:
         cursors = []
-        for _ in range(5):  # total=3, sollte wrappen
+        for _ in range(SYNTHETIC_CYCLE_LENGTH + 2):
             r = client.post(
                 "/simulate/pick",
                 json={"component_weight_kg": 3.5, "pick_duration_s": 2.4, "seed": 42},
             )
             assert r.status_code == 200
             cursors.append(r.json()["simulator"]["cursor"])
-    assert cursors == [1, 2, 0, 1, 2]
+    assert cursors[: SYNTHETIC_CYCLE_LENGTH] == list(range(1, SYNTHETIC_CYCLE_LENGTH)) + [0]
+    assert cursors[SYNTHETIC_CYCLE_LENGTH] == 1
+    assert cursors[SYNTHETIC_CYCLE_LENGTH + 1] == 2
 
 
 def test_simulate_reset_503_without_simulator(tmp_path):
