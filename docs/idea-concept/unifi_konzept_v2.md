@@ -22,6 +22,48 @@ Wir sitzen **zwischen** den Akteuren, nicht als Akteur. Daraus folgt zwingend: d
 
 ---
 
+## Stakeholder-Architektur: drei Layer, drei Bilanzen
+
+Der Pitch-Frame „Visa für Robotics-as-a-Service" trägt nur, wenn klar ist, **wer welche Bilanzposition hält** und **welcher Akteur UNIFI bezahlt**. Drei Layer, jeweils mit eigener Bilanz-Wahrheit:
+
+### Layer 1 — Endkunde (Anna, CFO der Mieter-Firma)
+
+- Zahlt **Pay-per-Pick** als Service-Gebühr.
+- **IFRS-16 trifft Anna nicht**, solange der Vertrag ein echter Service-Vertrag ist (kein identifiziertes Asset, keine Kundenkontrolle über Roboter-Einsatz, Provider entscheidet welcher Roboter welchen Pick macht). → reine OpEx, keine Bilanz-Belastung, Eigenkapitalquote unverändert, Covenants nicht gebrochen.
+- Genau das ist Annas Hauptinteresse — der „Bilanz-Vergleicher" im CFO-View ist ihre Kernzahl.
+
+### Layer 2 — Operator / Integrator (Jonas)
+
+- Betreibt die Roboter und stellt das Pay-per-Pick-Angebot. Verdient an der Marge zwischen Selbstkosten und Verkaufspreis.
+- **Bezahlt UNIFI** Plattformgebühren (Basispunkte pro Pick). Visa-Modell: der Akteur, der den Standard nutzt um sein Geschäft zu skalieren, ist auch der zahlende Kunde.
+- IFRS-16-Auswirkung hängt von der Eigentumskonstellation ab (siehe unten). Wenn er den Roboter least: Lease-Verbindlichkeit auf seiner Bilanz, **strukturell unkritisch** weil Roboter-Operations sein Kerngeschäft ist.
+
+### Layer 3 — Asset-Owner / Financier (Marie / SPV / Capital Markets)
+
+- Besitzt das Roboter-Asset, kassiert den Hardware-Cashflow-Anteil aus Pay-per-Pick.
+- **Beneficiary, nicht zahlender Kunde von UNIFI.** Profitiert von UNIFIs Live-Visibility, ohne Plattformgebühren zu zahlen — analog zum Händler bei Visa.
+- Hauptinteresse: aktueller Beleihungswert (Restwert) jedes Roboters und Cashflow-Trennung in Hardware-vs-Service-Anteil.
+
+### Drei Konstellationen — wer ist heute Asset-Owner
+
+| Konstellation | Asset-Eigentümer | Status | UNIFI-Rolle |
+|---|---|---|---|
+| **A — Integrator-Owned** | Operator (Locus, Vecna, Formic) finanziert über VC/Eigenkapital | **heutiger Markt** | Operator zahlt UNIFI für faire Pay-per-Pick-Daten + bessere Refinanzierung |
+| **B — Asset-Finance** | Bank/Leasing-Gesellschaft, Operator least | Zukunfts-Modell, durch UNIFI ermöglicht | Operator zahlt UNIFI; Bank ist Beneficiary mit Live-Asset-Visibility |
+| **C — SPV / Pool / Securitization** | Spezialgesellschaft, Investoren halten Tranchen | Skalen-Vision, langfristig | Operator zahlt UNIFI; Rating-Agenturen + Investoren konsumieren UNIFI-Daten |
+
+**Heute (A) ist Restwert primär Jonas' Kennzahl** (sein Asset, seine Abschreibung). **Mit UNIFI (B/C) wandert der Restwert-Bezug zur Bank/zum SPV** — was den Markt-Pool-Effekt erst möglich macht.
+
+### Pitch-Sprachregelung
+
+- **Hauptframe bleibt „Visa für Robotics-as-a-Service".** Niemals „Asset Finance Platform" als Headline — zu old-banking, killt Pitch-Momentum.
+- **CFO-View ist Hero (Akt 1).** Anna trägt die Hauptlast der Demo: Live-Cost-per-Pick + Bilanz-Vergleich.
+- **Bank-View ist Skalen-Beweis (Akt 3).** „Und außerdem entsteht so erstmals eine Asset-Klasse für Capital Markets" — der Wow-Closer, nicht der Hauptframe.
+- **Wer zahlt UNIFI:** Operatoren (Visa-Modell). Banken sind Beneficiaries.
+- **IFRS-16-Aufmärzen:** gilt nur für Anna. Die Lease-Verbindlichkeit wandert zum Asset-Owner und ist dort strukturell unkritisch.
+
+---
+
 ## Delta zu v1
 
 Gegenüber der ursprünglichen Konzept-Fassung haben sich nach Datensatz-Analyse und konzeptioneller Schärfung acht Punkte verändert:
@@ -247,28 +289,44 @@ Mit Datasheet-Werten aus dem UR5-Profil (Neupreis 35 k€, 30 M Picks Lebensdaue
 
 ---
 
-## CFO-View (Hero)
+## CFO-View (Hero — Akt 1)
 
-Der CFO der Mieter-Firma. Hier trägt die IFRS-16-Story.
+Der CFO der Mieter-Firma (Anna). Hauptbühne der Demo. Hier trägt die IFRS-16-Story — und sie gilt **ausschließlich auf dieser Layer-1-Ebene**: Annas Pay-per-Pick ist Service-Vertrag, nicht Lease, also reine OpEx ohne Bilanz-Belastung.
 
-- **Live Cost-per-Pick-Tile** — große Zahl, **tickt mit jedem Pick anders**, weil das Modell pro Fenster einen neuen Wear-Rate-Multiplier liefert. Hover zeigt Breakdown (Energie, Verschleiß, Kapital, Wartung).
+- **Live Pay-per-Pick-Tile** — große Zahl in Cent (Marktpreis, nicht Selbstkosten), **tickt mit jedem Pick anders**. Hover zeigt Hardware-Anteil vs. Service-Layer-Anteil (UNIFI-Differenzierung gegenüber Black-Box-Anbietern). Tieferes Breakdown (Energie, Verschleiß, Kapital, Wartung) ist Drilldown im Operator-View, nicht hier.
 - **Monthly Bill Preview** — akkumuliert tagaktuell, Hochrechnung auf Monatsende basierend auf historischer Last-Mix.
 - **Usage-Chart** — Picks pro Stunde, eingefärbt nach Wear-Rate-Segment (grün = Leichtbetrieb, orange = Mittel, rot = Schwerbetrieb).
-- **Bilanz-Vergleicher** — Split-Screen „IFRS-16-Leasing" (rot, Covenant-Warnung) vs. „UNIFI-Service" (grün, saubere OpEx). Moneyshot.
+- **Bilanz-Vergleicher** — Split-Screen „IFRS-16-Leasing" (rot, Covenant-Warnung) vs. „UNIFI-Service" (grün, saubere OpEx). Moneyshot. Klar adressiert: Annas Bilanz bleibt sauber, weil Pay-per-Pick ein Service-Vertrag ist und kein Lease — die Lease-Verbindlichkeit wandert zum Asset-Owner.
 - **Szenario-Slider** — Leichtbetrieb / Mittelbetrieb / Schwerbetrieb / Saisonpeak. Implementiert als **Hybrid-Demo**: UR5-NIST-Historie läuft als Stream, der Slider skaliert die Stream-Werte in Echtzeit (z.B. „Peak" multipliziert `actual_current_J{1..6}` mit 1.5×, erhöht die Zyklusrate, schaltet von 16-lb- auf 45-lb-Payload-Run). Der modifizierte Stream fließt durchs vor-trainierte Modell, das liefert einen neuen Wear-Rate-Multiplier, die Kosten-Engine rendert die neue Zahl. Ändert **real die Modell-Inputs** (nicht nur UI-Farben) — Werte bleiben realistisch (aus echten Daten), Modell reagiert tatsächlich. Das ist der direkte Datenehrlichkeits-Beweis.
 - **„Angebot anfragen"-Button** — triggert den Deal-Desk-Agent.
 
 ---
 
-## Bank-View
+## Bank-View (Skalen-Beweis — Akt 3)
 
-Der Financier sieht die Flotte als neue Asset-Klasse mit Echtzeit-Transparenz.
+Der Financier (Marie) sieht die Flotte als neue Asset-Klasse mit Echtzeit-Transparenz. Diese View ist im Pitch der **Closer**, nicht der Hauptframe — sie zeigt: *„und außerdem entsteht durch UNIFI erstmals eine als-Asset-Klasse-finanzierbare Robotik-Industrie".*
+
+**Wichtig fürs Pitch-Framing:** Marie ist im heutigen RaaS-Markt (Konstellation A: Integrator-Owned) nur indirekt drin — Banken finanzieren Operator-Wachstum, nicht einzelne Roboter. **Mit UNIFI wird Konstellation B (Asset-Finance) wirtschaftlich**, weil Banken erstmals einen Live-Standard für Roboter-Asset-Bewertung haben — analog zu Aircraft-Lease-Pool-Standards bei Flugzeugen oder FMS-Standards bei LKWs. Die Bank-View ist der **Demo-Beweis dieser Möglichkeit**, nicht ein Feature für heute existierende Bank-Kunden.
 
 - **Robot Credit Score** — zusammengesetzter Wert aus Wear Rate (Verbrauch) + Restwert + Cashflow-Deckung. (Im MVP: ohne Anomaly-Score-Komponente; konzeptionell vorgesehen.)
 - **Fleet-Tabelle** — alle Roboter mit Current Wear Rate, kumuliertem Verschleiß, Restwert (€), Daily Revenue, Risiko-Ampel. **Entscheidend:** differenzierter Restwert pro Roboter — Roboter #17 in Leichtbetrieb hat einen anderen Restwert als #34 in Dauer-Schwerbetrieb.
 - **Portfolio-Kennzahlen** — Collateral Value gesamt (Summe der Restwerte), gewichteter Flotten-Wear-Average, Konzentrationsrisiko.
 - **Drilldown** — Klick auf Roboter zeigt Wear-Rate-Verlauf und **SHAP-Feature-Importance** („warum ist die Wear Rate so hoch? → `actual_current_J3.vMax` + `joint_temperature_J5.vStd` dominieren"). Das ersetzt im MVP den Anomaly-Drilldown.
-- **Cashflow-Proof** — aggregierte tägliche Pay-per-Pick-Einnahmen über die Flotte. Killer-Argument: die Raten fließen aus echtem Umsatz, nicht aus Versprechen, und sind mit der selben Telemetrie verknüpft wie der Asset-Wert.
+- **Cashflow-Trennung** — aggregierte tägliche Pay-per-Pick-Einnahmen über die Flotte, **explizit aufgeteilt in Hardware-Cashflow (asset-backed, niedrigeres Risiko) und Service-Cashflow (operations-abhängig, höheres Risiko)**. Killer-Argument: die Raten fließen aus echtem Umsatz, nicht aus Versprechen, und sind mit derselben Telemetrie verknüpft wie der Asset-Wert. Genau diese Trennung ermöglicht differenzierte Refinanzierung im Capital-Market-Sinne.
+
+---
+
+## Operator-View (im MVP minimal — Akt 2-Brücke)
+
+Der Operator (Jonas, der Integrator/Vermieter) ist **der zahlende UNIFI-Kunde**, sein View ist im MVP bewusst klein gehalten (KPI-Kacheln + UCS-Onboarding-Button), konzeptionell aber für die Stakeholder-Logik wesentlich. Was er konzeptionell sehen würde:
+
+- **Selbstkost-Aufschlüsselung pro Pick** (Energie, Verschleiß, Kapital, Wartung) — die Zahl, aus der er sein Pay-per-Pick-Angebot baut.
+- **Service-Multiplier-Slider** — Faktor, mit dem er die Selbstkosten in den Marktpreis übersetzt (Branchen-typisch 4–15× je nach Volumen und Komplexität, Default 5×). Hier konfiguriert er Marge + Service-Layer-Aufschlag.
+- **Marge in Euro pro Pick** und auf Jahresbasis aggregiert — seine eigentliche Steuerungsgröße.
+- **UCS-Onboarding-Button** — fremde Telemetrie + Datasheet droppen, neuen Roboter integrieren.
+- *(In Konstellation A — Integrator-Owned)* zusätzlich **Asset-Buchwert / Restwert** seiner Flotte für seine eigene Bilanz und Refinanzierungs-Verhandlungen mit Banken.
+
+→ Die Selbstkosten-zu-Marktpreis-Übersetzung lebt strukturell **hier**, nicht im CFO-View. Anna sieht nur den fertigen Marktpreis. Marie sieht den Cashflow nach der Trennung in Hardware vs. Service.
 
 ---
 
