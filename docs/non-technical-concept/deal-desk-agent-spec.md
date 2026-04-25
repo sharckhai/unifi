@@ -7,7 +7,7 @@ This is the design-grounding document for the Deal-Desk Agent. The executable ar
 In:
 - One persona: **Anna** — CFO of a mid-market logistics / e-commerce company.
 - Two robots: **UR5** (cobot, mixed weights) and **SCARA** (light, high-throughput).
-- Five tools: `analyze_pdf_inquiry`, `get_robots`, `get_robot_infos`, `get_pricing_history`, `vergleich_leasing_and_unifi`.
+- Five tools: `analyze_pdf_inquiry`, `get_robots`, `get_robot_infos`, `get_pricing_history`, `compare_leasing_and_unifi`.
 - Cash-flow + risk-profile comparison against classical leasing.
 
 Out:
@@ -29,7 +29,7 @@ Inquiry (structured)
 RobotInfo
    ↓ get_pricing_history × 1–2 weight classes
 PricingCurve(s)
-   ↓ vergleich_leasing_and_unifi
+   ↓ compare_leasing_and_unifi
 LeasingComparison
    ↓
 Offer (structured JSON)

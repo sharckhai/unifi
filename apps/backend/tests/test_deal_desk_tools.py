@@ -22,7 +22,7 @@ from unifi.deal_desk.tools import (
     get_pricing_history,
     get_robot_infos,
     get_robots,
-    vergleich_leasing_and_unifi,
+    compare_leasing_and_unifi,
 )
 
 
@@ -95,8 +95,8 @@ def test_pricing_curve_scales_with_wear_multiplier_within_class():
     assert prices == sorted(prices)
 
 
-def test_vergleich_leasing_and_unifi_basic_shape():
-    result = vergleich_leasing_and_unifi(
+def test_compare_leasing_and_unifi_basic_shape():
+    result = compare_leasing_and_unifi(
         robot_name="UR5",
         fleet_size=10,
         term_months=60,
@@ -110,9 +110,9 @@ def test_vergleich_leasing_and_unifi_basic_shape():
     assert result.unifi.monthly_high_eur > result.unifi.expected_monthly_eur
 
 
-def test_vergleich_break_even_volume_consistent():
+def test_compare_break_even_volume_consistent():
     """Break-even volume × €/pick must equal leasing monthly payment."""
-    result = vergleich_leasing_and_unifi(
+    result = compare_leasing_and_unifi(
         robot_name="UR5",
         fleet_size=10,
         term_months=60,
@@ -123,8 +123,8 @@ def test_vergleich_break_even_volume_consistent():
     assert result.break_even_volume_picks_per_month == pytest.approx(expected_break_even)
 
 
-def test_vergleich_uses_catalog_leasing_factor():
-    result = vergleich_leasing_and_unifi(
+def test_compare_uses_catalog_leasing_factor():
+    result = compare_leasing_and_unifi(
         robot_name="UR5",
         fleet_size=10,
         term_months=60,

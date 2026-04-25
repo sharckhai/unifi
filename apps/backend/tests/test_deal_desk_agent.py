@@ -135,7 +135,7 @@ def fake_client_factory(tmp_path: Path):
             {"robot_name": "UR5", "weight_class": "light", "timestep": "monthly"},
         ),
         _make_fc_response(
-            "vergleich_leasing_and_unifi",
+            "compare_leasing_and_unifi",
             {
                 "robot_name": "UR5",
                 "fleet_size": 10,
@@ -177,7 +177,7 @@ def test_agent_runs_full_workflow(monkeypatch, tmp_path, fake_client_factory):
         "get_robots",
         "get_robot_infos",
         "get_pricing_history",
-        "vergleich_leasing_and_unifi",
+        "compare_leasing_and_unifi",
     ]
     actual_names = [name for name, _ in result.tool_calls]
     assert actual_names == expected_sequence

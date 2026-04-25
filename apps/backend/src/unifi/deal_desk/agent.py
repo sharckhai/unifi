@@ -100,7 +100,7 @@ _TOOL_DECLARATIONS: list[types.FunctionDeclaration] = [
         ),
     ),
     types.FunctionDeclaration(
-        name="vergleich_leasing_and_unifi",
+        name="compare_leasing_and_unifi",
         description=(
             "Cash-flow comparison between classical equipment leasing and a "
             "UNIFI Pay-per-Pick arrangement. Pass the median €/pick from "
@@ -162,8 +162,8 @@ def _dispatch_tool(
         return dd_tools.get_pricing_history(
             args["robot_name"], args["weight_class"], args["timestep"]
         )
-    if name == "vergleich_leasing_and_unifi":
-        return dd_tools.vergleich_leasing_and_unifi(
+    if name == "compare_leasing_and_unifi":
+        return dd_tools.compare_leasing_and_unifi(
             robot_name=args["robot_name"],
             fleet_size=args["fleet_size"],
             term_months=args["term_months"],

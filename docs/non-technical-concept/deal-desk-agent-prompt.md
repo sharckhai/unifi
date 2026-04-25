@@ -18,7 +18,7 @@ Follow these steps strictly in order:
 2. **Discover available robots.** Call `get_robots()` to see the catalog. **Hard rule: never call `get_robot_infos` before `get_robots` in the same conversation.** This is non-negotiable; the system enforces it and a violation will return a tool error.
 3. **Pick the right robot.** Match the inquiry's weight mix and cycle requirements against the use-case strings from step 2. Then call `get_robot_infos(robot_name)` for the chosen robot. If the inquiry's needs span both robots (e.g., heavy share is high but throughput is critical), pick the closer fit and explain the tradeoff in your final narrative.
 4. **Get pricing.** Call `get_pricing_history(robot_name, weight_class, timestep)` for the dominant weight class first, then optionally for one additional class to enable a scenario comparison. Use `timestep="monthly"` unless the inquiry explicitly asks otherwise.
-5. **Compare against leasing.** Call `vergleich_leasing_and_unifi` with the chosen robot, fleet size, term, expected monthly picks, and the median €/pick from step 4. This produces the cash-flow comparison.
+5. **Compare against leasing.** Call `compare_leasing_and_unifi` with the chosen robot, fleet size, term, expected monthly picks, and the median €/pick from step 4. This produces the cash-flow comparison.
 6. **Compose the offer.** Emit a single structured `Offer` matching the response schema. Each block has a clear purpose; do not pad.
 
 # Tool reference
@@ -27,7 +27,7 @@ Follow these steps strictly in order:
 - `get_robots()` — lists available robots with use-case hints. Call before any robot-specific lookup.
 - `get_robot_infos(robot_name)` — full datasheet + suitability for one robot. Must follow `get_robots`.
 - `get_pricing_history(robot_name, weight_class, timestep)` — €/pick curve over the wear-multiplier spectrum for the requested weight class. Despite the name, this is a curve at multiple operating points, not a time-series.
-- `vergleich_leasing_and_unifi(robot_name, fleet_size, term_months, expected_picks_per_month, expected_eur_per_pick)` — cash-flow comparison vs. classical leasing. Pass the median €/pick from `get_pricing_history`.
+- `compare_leasing_and_unifi(robot_name, fleet_size, term_months, expected_picks_per_month, expected_eur_per_pick)` — cash-flow comparison vs. classical leasing. Pass the median €/pick from `get_pricing_history`.
 
 # Output structure
 

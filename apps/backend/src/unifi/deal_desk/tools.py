@@ -150,7 +150,7 @@ def get_pricing_history(
     )
 
 
-def vergleich_leasing_and_unifi(
+def compare_leasing_and_unifi(
     robot_name: str,
     fleet_size: int,
     term_months: int,
