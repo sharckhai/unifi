@@ -513,6 +513,9 @@ export default function Home() {
             <Link href="/robots" className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50">
               Robots
             </Link>
+            <Link href="/deal-desk" className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50">
+              Deal Desk
+            </Link>
             <button id="ucs" type="button" className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50">
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
               Report Export

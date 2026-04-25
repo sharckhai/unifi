@@ -119,6 +119,7 @@ def fake_client_factory(tmp_path: Path):
         industry="e-commerce fulfillment",
         fleet_size=10,
         weight_mix=WeightMix(light_share=0.6, medium_share=0.3, heavy_share=0.1),
+        is_one_time_project=False,
         expected_picks_per_month=2_000_000,
         seasonality="moderate Q4 peak, +20% for ~8 weeks",
         term_preference_months=60,
