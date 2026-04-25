@@ -12,6 +12,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from unifi.api.routes import cost_per_pick, health, residual, simulate, wear_rate
 from unifi.core.config import get_settings
@@ -49,6 +50,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="UNIFI Backend", version="0.1.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(health.router)
 app.include_router(wear_rate.router)
 app.include_router(cost_per_pick.router)

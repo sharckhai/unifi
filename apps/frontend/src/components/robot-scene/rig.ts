@@ -57,6 +57,44 @@ function createCapsuleBetween(
   return setMeshShadows(mesh);
 }
 
+function createArmTextLabel(text: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 256;
+
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    return new THREE.Group();
+  }
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.font = "700 104px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillStyle = "#050505";
+  context.shadowColor = "rgba(0, 0, 0, 0.28)";
+  context.shadowBlur = 16;
+  context.shadowOffsetY = 5;
+  context.fillText(text, canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(0.76, 0.19), material);
+  label.rotation.z = -Math.PI / 2;
+  label.renderOrder = 4;
+
+  return label;
+}
+
 function createJointHousing(
   radius: number,
   depth: number,
@@ -245,6 +283,13 @@ export function buildRobotRig(materials: RobotMaterials) {
       materials.metal,
     ),
   );
+  const forearmLabel = createArmTextLabel("{Tech: Europe}");
+  forearmLabel.position.set(0, ROBOT_FOREARM_LENGTH * 0.5, 0.112);
+  const oppositeForearmLabel = createArmTextLabel("{Tech: Europe}");
+  oppositeForearmLabel.position.set(0, ROBOT_FOREARM_LENGTH * 0.5, -0.112);
+  oppositeForearmLabel.rotation.y = Math.PI;
+  oppositeForearmLabel.rotation.z = Math.PI / 2;
+  elbowPitch.add(forearmLabel, oppositeForearmLabel);
 
   const wrist1Pitch = new THREE.Group();
   wrist1Pitch.position.y = ROBOT_FOREARM_LENGTH;

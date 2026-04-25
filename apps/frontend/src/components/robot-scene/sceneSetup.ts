@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { HOME_POSE, SORTING_BINS } from "./constants";
+import { HOME_POSE, SORTING_BINS, SORTING_OUTER_RADIUS } from "./constants";
 import { applyPoseToRig, clampPolarAngle } from "./motion";
 import { applyGripperToRig, buildRobotRig } from "./rig";
 import { addBinColliders, createSortingSector } from "./sortingBins";
@@ -25,11 +25,25 @@ type RobotMaterialPalette = {
   dark: number;
 };
 
+const SCENE_FLOOR_RADIUS = 3.25;
+
 export const ROBOT_COLOR_THEMES: RobotMaterialPalette[] = [
   { id: "tesla", label: "Tesla", shell: 0xf8fafc, joint: 0xe5e7eb, dark: 0x10141d },
   { id: "graphite", label: "Graphite", shell: 0x202532, joint: 0x9ca3af, dark: 0x070a11 },
   { id: "ice", label: "Ice", shell: 0xf0f9ff, joint: 0xbfe3ff, dark: 0x123047 },
   { id: "copper", label: "Copper", shell: 0xfff7ed, joint: 0xc47a4a, dark: 0x24140f },
+  { id: "cobalt", label: "Cobalt", shell: 0xdbeafe, joint: 0x2563eb, dark: 0x0f172a },
+  { id: "mint", label: "Mint", shell: 0xecfdf5, joint: 0x34d399, dark: 0x064e3b },
+  { id: "ember", label: "Ember", shell: 0xffedd5, joint: 0xf97316, dark: 0x431407 },
+  { id: "violet", label: "Violet", shell: 0xf5f3ff, joint: 0x8b5cf6, dark: 0x2e1065 },
+  { id: "aurora", label: "Aurora", shell: 0xecfeff, joint: 0x06b6d4, dark: 0x083344 },
+  { id: "nebula", label: "Nebula", shell: 0xfdf4ff, joint: 0xd946ef, dark: 0x3b0764 },
+  { id: "wasabi", label: "Wasabi", shell: 0xf7fee7, joint: 0x84cc16, dark: 0x1a2e05 },
+  { id: "sandstorm", label: "Sandstorm", shell: 0xfef3c7, joint: 0xd97706, dark: 0x451a03 },
+  { id: "abyss", label: "Abyss", shell: 0xe0f2fe, joint: 0x0284c7, dark: 0x082f49 },
+  { id: "orchid", label: "Orchid", shell: 0xfce7f3, joint: 0xdb2777, dark: 0x500724 },
+  { id: "racing", label: "Racing", shell: 0xfef2f2, joint: 0xdc2626, dark: 0x111827 },
+  { id: "prism", label: "Prism", shell: 0xffffff, joint: 0x7c3aed, dark: 0x0f172a },
 ];
 
 type RobotSceneOptions = {
@@ -84,20 +98,20 @@ export async function startRobotScene(
   world.timestep = 1 / 60;
 
   const floor = new THREE.Mesh(
-    new THREE.CylinderGeometry(2.85, 2.85, 0.08, 96),
+    new THREE.CylinderGeometry(SCENE_FLOOR_RADIUS, SCENE_FLOOR_RADIUS, 0.08, 96),
     new THREE.MeshStandardMaterial({
-      color: 0xf5f2ea,
-      roughness: 0.84,
-      metalness: 0.04,
+      color: 0xffffff,
+      roughness: 0.78,
+      metalness: 0.01,
       transparent: true,
-      opacity: 0.72,
+      opacity: 0.94,
     }),
   );
   floor.position.y = -0.04;
   floor.receiveShadow = true;
   sceneRoot.add(floor);
 
-  const grid = new THREE.GridHelper(5.8, 29, 0x1f55ff, 0x9aaeff);
+  const grid = new THREE.GridHelper(SCENE_FLOOR_RADIUS * 2, 32, 0x1f55ff, 0x9aaeff);
   grid.position.y = 0.012;
   const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
   gridMaterials.forEach((material) => {
