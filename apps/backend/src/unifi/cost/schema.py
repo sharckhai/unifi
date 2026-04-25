@@ -70,3 +70,31 @@ class CostBreakdown(BaseModel):
     wear_rate_multiplier: float
     picks_per_year_used: int
     power_w_used: float
+
+
+class PricingConfig(BaseModel):
+    """Aufschlag oberhalb der Variante-C-Betriebskosten.
+
+    service_fee_pct      — UNIFI-Plattform-Gebühr (Layer-2, Operator zahlt UNIFI)
+    operator_margin_pct  — Jonas-/Integrator-Marge auf Betriebskosten
+    Beide jeweils als Anteil der production_cost (additiv aufgeschlagen).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    service_fee_pct: float = Field(default=0.15, ge=0, le=1.0)
+    operator_margin_pct: float = Field(default=0.25, ge=0, le=2.0)
+
+
+class PricingBreakdown(BaseModel):
+    """Endkunden-Preis-Stack: production_cost + service_fee + operator_margin = customer_price."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    production_cost_eur_per_pick: float
+    service_fee_eur_per_pick: float
+    operator_margin_eur_per_pick: float
+    customer_price_eur_per_pick: float
+    service_fee_pct: float
+    operator_margin_pct: float
+    total_uplift_pct: float

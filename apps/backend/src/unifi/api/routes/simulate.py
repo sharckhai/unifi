@@ -15,8 +15,14 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from unifi.cost.engine import compute_cost_per_pick
-from unifi.cost.schema import CostBreakdown, FinanceConfig, OperatingProfile
+from unifi.cost.engine import compute_cost_per_pick, compute_customer_pricing
+from unifi.cost.schema import (
+    CostBreakdown,
+    FinanceConfig,
+    OperatingProfile,
+    PricingBreakdown,
+    PricingConfig,
+)
 from unifi.models.wear_rate import predict_one
 from unifi.residual.engine import compute_residual_value
 from unifi.residual.schema import ResidualValue, RobotState
@@ -35,6 +41,7 @@ class SimulatePickRequest(BaseModel):
     seed: int | None = None
     finance: FinanceConfig | None = None
     operating: OperatingProfile | None = None
+    pricing: PricingConfig | None = None
 
 
 class EmphasisInfo(BaseModel):
@@ -58,13 +65,14 @@ class SimulatePickResponse(BaseModel):
     wear_rate_multiplier: float
     clipped: bool
     cost: CostBreakdown
+    pricing: PricingBreakdown
     features: UcsFeatures
     emphasis: EmphasisInfo
     shap_top: list[ShapContribution]
     source: SourceInfo
     simulator: SimulatorState
-    live_robot: RobotState | None = None
-    live_residual: ResidualValue | None = None
+    live_robot: RobotState
+    live_residual: ResidualValue
 
 
 class SimulateResetResponse(BaseModel):
@@ -107,20 +115,19 @@ def simulate_pick(req: SimulatePickRequest, request: Request) -> SimulatePickRes
         finance=req.finance,
         operating=req.operating,
     )
+    pricing = compute_customer_pricing(cost=cost, pricing=req.pricing)
     shap_top = top_k_contributions(booster, feature_order, biased, k=3)
 
-    live_robot_state: RobotState | None = None
-    live_residual: ResidualValue | None = None
-    live_robot = getattr(request.app.state, "live_robot", None)
-    if live_robot is not None:
-        live_robot.increment(multiplier, biased.cycle_intensity)
-        live_robot_state = live_robot.snapshot()
-        live_residual = compute_residual_value(datasheet=datasheet, state=live_robot_state)
+    live_robot = request.app.state.live_robot
+    live_robot.increment(multiplier, biased.cycle_intensity)
+    live_robot_state = live_robot.snapshot()
+    live_residual = compute_residual_value(datasheet=datasheet, state=live_robot_state)
 
     return SimulatePickResponse(
         wear_rate_multiplier=multiplier,
         clipped=clipped,
         cost=cost,
+        pricing=pricing,
         features=biased,
         emphasis=EmphasisInfo(feature=emphasis_feature, factor=emphasis_factor),
         shap_top=shap_top,

@@ -20,6 +20,8 @@ from unifi.cost.schema import (
     CostBreakdown,
     FinanceConfig,
     OperatingProfile,
+    PricingBreakdown,
+    PricingConfig,
 )
 from unifi.ucs.schema import UcsDatasheet
 
@@ -73,4 +75,24 @@ def compute_cost_per_pick(
         wear_rate_multiplier=wear_rate_multiplier,
         picks_per_year_used=picks_per_year,
         power_w_used=power_w,
+    )
+
+
+def compute_customer_pricing(
+    *,
+    cost: CostBreakdown,
+    pricing: PricingConfig | None = None,
+) -> PricingBreakdown:
+    pricing = pricing or PricingConfig()
+    production = cost.total_eur
+    service = production * pricing.service_fee_pct
+    margin = production * pricing.operator_margin_pct
+    return PricingBreakdown(
+        production_cost_eur_per_pick=production,
+        service_fee_eur_per_pick=service,
+        operator_margin_eur_per_pick=margin,
+        customer_price_eur_per_pick=production + service + margin,
+        service_fee_pct=pricing.service_fee_pct,
+        operator_margin_pct=pricing.operator_margin_pct,
+        total_uplift_pct=pricing.service_fee_pct + pricing.operator_margin_pct,
     )

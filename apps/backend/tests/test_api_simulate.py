@@ -6,11 +6,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pandas as pd
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from unifi.api.routes import cost_per_pick, health, simulate, wear_rate
 from unifi.models.wear_rate import TrainParams, train
+from unifi.residual.accumulator import LiveRobotState
 from unifi.simulator.sampler import WindowSampler
 from unifi.ucs.schema import UcsDatasheet
 
@@ -81,6 +83,7 @@ def _make_app(tmp_path, *, with_model: bool, with_simulator: bool) -> FastAPI:
         app.state.feature_order = feature_order
         app.state.model_version = "test1234" if with_model else None
         app.state.simulator = sampler
+        app.state.live_robot = LiveRobotState()
         yield
 
     app = FastAPI(lifespan=lifespan)
@@ -114,6 +117,42 @@ def test_simulate_pick_returns_full_breakdown(tmp_path):
     assert body["source"]["payload_lb"] == 45
     assert body["source"]["speed"] == "halfspeed"
 
+    # Pricing-Stack: production + service + margin = customer
+    pricing = body["pricing"]
+    assert pricing["production_cost_eur_per_pick"] == body["cost"]["total_eur"]
+    assert pricing["customer_price_eur_per_pick"] > pricing["production_cost_eur_per_pick"]
+    assert pricing["total_uplift_pct"] == pytest.approx(0.40, rel=1e-9)
+
+    # live_robot/live_residual sind Pflicht-Felder
+    assert body["live_robot"] is not None
+    assert body["live_robot"]["cumulative_picks"] == 1
+    assert body["live_residual"] is not None
+    assert body["live_residual"]["residual_value_eur"] > 0
+
+
+def test_simulate_pick_custom_pricing(tmp_path):
+    app = _make_app(tmp_path, with_model=True, with_simulator=True)
+    with TestClient(app) as client:
+        r = client.post(
+            "/simulate/pick",
+            json={
+                "component_weight_kg": 3.5,
+                "pick_duration_s": 2.4,
+                "seed": 42,
+                "pricing": {"service_fee_pct": 0.0, "operator_margin_pct": 0.40},
+            },
+        )
+    body = r.json()
+    pricing = body["pricing"]
+    assert pricing["service_fee_eur_per_pick"] == 0.0
+    assert pricing["operator_margin_eur_per_pick"] == pytest.approx(
+        body["cost"]["total_eur"] * 0.40, rel=1e-9
+    )
+    assert pricing["customer_price_eur_per_pick"] == pytest.approx(
+        body["cost"]["total_eur"] * 1.40, rel=1e-9
+    )
+    assert pricing["total_uplift_pct"] == pytest.approx(0.40, rel=1e-9)
+
 
 def test_simulate_pick_503_without_model(tmp_path):
     app = _make_app(tmp_path, with_model=False, with_simulator=True)
@@ -143,6 +182,36 @@ def test_simulate_pick_validates_positive_inputs(tmp_path):
             json={"component_weight_kg": 0, "pick_duration_s": 2.4},
         )
     assert r.status_code == 422
+
+
+def test_simulate_pick_shorter_duration_propagates_through_pipeline(tmp_path):
+    """Kürzere pick_duration_s bei gleichem Gewicht/Window propagiert deterministisch:
+
+    - renormalize: cycle_intensity = rated/duration → ↑
+    - renormalize: velocity_intensity_max *= duration_ratio → ↑
+    - cost-engine: energy_eur ∝ observed_cycle_time_s = duration → ↓
+    - wear-modell: höhere cycle_intensity ist Eingangs-Feature mit nicht-negativem
+      Effekt auf den Multiplier → multiplier_fast >= multiplier_slow.
+
+    Total-Trend ist absichtlich nicht asserted: er hängt vom konkreten Holdout-Sample
+    und Modell-Sensitivität ab (z. B. clippt der UR5-Multiplier bei sehr leichten
+    Lasten am unteren Floor 0.3, dann zieht energy↓ den Total leicht runter).
+    """
+    app = _make_app(tmp_path, with_model=True, with_simulator=True)
+    with TestClient(app) as client:
+        slow = client.post(
+            "/simulate/pick",
+            json={"component_weight_kg": 5.0, "pick_duration_s": 4.0, "seed": 11},
+        ).json()
+        client.post("/simulate/reset")
+        fast = client.post(
+            "/simulate/pick",
+            json={"component_weight_kg": 5.0, "pick_duration_s": 1.0, "seed": 11},
+        ).json()
+    assert fast["features"]["cycle_intensity"] > slow["features"]["cycle_intensity"]
+    assert fast["features"]["velocity_intensity_max"] > slow["features"]["velocity_intensity_max"]
+    assert fast["cost"]["energy_eur"] < slow["cost"]["energy_eur"]
+    assert fast["wear_rate_multiplier"] >= slow["wear_rate_multiplier"]
 
 
 def test_simulate_pick_heavier_yields_higher_multiplier(tmp_path):
