@@ -1,0 +1,31 @@
+{
+  "params": {
+    "alpha": 2.5,
+    "k": 0.05,
+    "t_ref": 30.0,
+    "anchor_payload_class": "light",
+    "anchor_speed": "fullspeed",
+    "anchor_thermal_state": "warm",
+    "anchor_split": "train"
+  },
+  "anchor_n": 70,
+  "anchor_median_raw": 0.28462397664730543,
+  "multiplier_p05": 0.10059128580427487,
+  "multiplier_p50": 0.7085902193330835,
+  "multiplier_p95": 5.589613702354005,
+  "bucket_means": {
+    "heavy|fullspeed|cold|train": 1.925,
+    "heavy|fullspeed|cold|val": 2.666,
+    "heavy|fullspeed|warm|train": 3.166,
+    "heavy|fullspeed|warm|val": 2.794,
+    "heavy|halfspeed|cold|train": 0.696,
+    "heavy|halfspeed|cold|val": 0.879,
+    "heavy|halfspeed|warm|holdout": 1.07,
+    "heavy|halfspeed|warm|train": 1.089,
+    "heavy|halfspeed|warm|val": 1.047,
+    "light|fullspeed|warm|train": 1.561,
+    "light|fullspeed|warm|val": 0.992,
+    "light|halfspeed|warm|train": 0.413,
+    "light|halfspeed|warm|val": 0.424
+  }
+}

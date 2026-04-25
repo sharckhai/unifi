@@ -1,0 +1,33 @@
+{
+  "feature_order": [
+    "motor_load_ratio_max",
+    "motor_load_ratio_mean",
+    "motor_load_ratio_std",
+    "cycle_intensity",
+    "velocity_intensity_max",
+    "torque_load_ratio_max",
+    "temp_delta_normalized_max",
+    "temp_delta_normalized_mean",
+    "tcp_force_norm",
+    "tracking_error_rms",
+    "thermal_state",
+    "payload_class"
+  ],
+  "categorical_indices": [
+    10,
+    11
+  ],
+  "categorical_map": {
+    "thermal_state": {
+      "cold": 0,
+      "warm": 1
+    },
+    "payload_class": {
+      "light": 0,
+      "heavy": 1
+    }
+  },
+  "clip_lo": 0.3,
+  "clip_hi": 5.0,
+  "model_version": "fae1da25"
+}

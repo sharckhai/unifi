@@ -1,0 +1,31 @@
+{
+  "params": {
+    "num_leaves": 15,
+    "learning_rate": 0.05,
+    "n_estimators": 300,
+    "min_data_in_leaf": 20,
+    "feature_fraction": 0.9,
+    "bagging_fraction": 0.9,
+    "bagging_freq": 5,
+    "early_stopping_rounds": 30,
+    "seed": 42
+  },
+  "n_train": 452,
+  "n_val": 114,
+  "val_rmse_log": 0.06860728038145028,
+  "val_rmse": 0.48117070759129704,
+  "quantiles": {
+    "p05": 0.3,
+    "p50": 0.8532402438665391,
+    "p95": 5.0
+  },
+  "bucket_means": {
+    "0|fullspeed|1": 0.9710330645821755,
+    "0|halfspeed|1": 0.4884441959209481,
+    "1|fullspeed|0": 2.3269796024901206,
+    "1|fullspeed|1": 2.3880432383834402,
+    "1|halfspeed|0": 0.9392097839907209,
+    "1|halfspeed|1": 1.047069211747212
+  },
+  "model_version": "fae1da25"
+}
