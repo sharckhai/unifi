@@ -106,12 +106,15 @@ def simulate_pick(req: SimulatePickRequest, request: Request) -> SimulatePickRes
     rng = np.random.default_rng(req.seed)
     biased, emphasis_feature, emphasis_factor = apply_random_emphasis(rescaled, rng)
 
-    multiplier, clipped = predict_one(booster, feature_order, biased)
+    # Multiplier auf un-biased Features → deterministisch und Anker-konsistent.
+    # SHAP-Top wird weiterhin auf biased Features berechnet, damit das demo-
+    # variable "diesmal war Feature X der Treiber" sichtbar bleibt.
+    multiplier, clipped = predict_one(booster, feature_order, rescaled)
     cost = compute_cost_per_pick(
         datasheet=datasheet,
         wear_rate_multiplier=multiplier,
-        motor_load_ratio_max=biased.motor_load_ratio_max,
-        cycle_intensity=biased.cycle_intensity,
+        motor_load_ratio_max=rescaled.motor_load_ratio_max,
+        cycle_intensity=rescaled.cycle_intensity,
         finance=req.finance,
         operating=req.operating,
     )
@@ -119,7 +122,7 @@ def simulate_pick(req: SimulatePickRequest, request: Request) -> SimulatePickRes
     shap_top = top_k_contributions(booster, feature_order, biased, k=3)
 
     live_robot = request.app.state.live_robot
-    live_robot.increment(multiplier, biased.cycle_intensity)
+    live_robot.increment(multiplier, rescaled.cycle_intensity)
     live_robot_state = live_robot.snapshot()
     live_residual = compute_residual_value(datasheet=datasheet, state=live_robot_state)
 
@@ -128,7 +131,7 @@ def simulate_pick(req: SimulatePickRequest, request: Request) -> SimulatePickRes
         clipped=clipped,
         cost=cost,
         pricing=pricing,
-        features=biased,
+        features=rescaled,
         emphasis=EmphasisInfo(feature=emphasis_feature, factor=emphasis_factor),
         shap_top=shap_top,
         source=SourceInfo(

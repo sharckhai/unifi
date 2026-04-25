@@ -1,0 +1,15 @@
+{
+  "model": "Universal Robots UR5",
+  "manufacturer": "Universal Robots",
+  "robot_class": "cobot",
+  "cost_new_eur": 35000,
+  "nominal_picks_lifetime": 30000000,
+  "rated_current_a": 6.0,
+  "rated_torque_nm": 150.0,
+  "rated_cycle_time_s": 2.0,
+  "rated_payload_kg": 5.0,
+  "nominal_duty_cycle": 0.8,
+  "maintenance_cost_pct_per_year": 0.05,
+  "power_consumption_w": 150.0,
+  "nominal_lifetime_years": 10.0
+}

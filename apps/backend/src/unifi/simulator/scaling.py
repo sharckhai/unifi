@@ -20,6 +20,23 @@ from unifi.ucs.schema import PayloadClass, UcsDatasheet, UcsFeatures
 
 LB_TO_KG: float = 0.45359237
 
+# Empirisch aus NIST-Daten kalibriert (16 lb vs 45 lb, warm × fullspeed):
+# - motor_load_ratio_max:       Exponent 0.28
+# - motor_load_ratio_mean:      Exponent 0.40
+# - torque_load_ratio_max:      Exponent ~0.0
+# - tcp_force_norm:             Exponent ~0.03
+# - temp_delta_normalized_max:  Exponent 0.17
+# - temp_delta_normalized_mean: Exponent 0.61
+# - tracking_error_rms:         Exponent 0.08 (praktisch last-unabhängig)
+#
+# Roboter-Joints zeigen sublineare Last-Skalierung (Reibung/Idle-Strom dominant).
+# Wir nutzen einen einheitlichen Exponenten 0.5 für Last-skalierte Features
+# (Mittel von 0–0.4) und 0.4 für temp (Mittel von 0.17/0.61). Tracking bleibt
+# last-unabhängig.
+LOAD_EXPONENT: float = 0.5
+TEMP_DELTA_EXPONENT: float = 0.4
+TEMP_DELTA_CLAMP: tuple[float, float] = (-0.5, 1.0)
+
 EMPHASIS_CANDIDATES: tuple[str, ...] = (
     "motor_load_ratio_max",
     "torque_load_ratio_max",
@@ -28,6 +45,11 @@ EMPHASIS_CANDIDATES: tuple[str, ...] = (
     "tracking_error_rms",
 )
 EMPHASIS_FACTOR_RANGE: tuple[float, float] = (1.2, 2.0)
+
+
+def _clamp(value: float, bounds: tuple[float, float]) -> float:
+    lo, hi = bounds
+    return max(lo, min(hi, value))
 
 
 def renormalize(
@@ -44,6 +66,8 @@ def renormalize(
 
     mass_ratio = component_weight_kg / source_payload_kg
     duration_ratio = source_cycle_time_s / pick_duration_s
+    mass_ratio_load = mass_ratio ** LOAD_EXPONENT
+    mass_ratio_temp = mass_ratio ** TEMP_DELTA_EXPONENT
 
     payload_class: PayloadClass = (
         "heavy" if component_weight_kg > datasheet.rated_payload_kg else "light"
@@ -51,13 +75,19 @@ def renormalize(
 
     return features.model_copy(
         update={
-            "motor_load_ratio_max": features.motor_load_ratio_max * mass_ratio,
-            "motor_load_ratio_mean": features.motor_load_ratio_mean * mass_ratio,
-            "motor_load_ratio_std": features.motor_load_ratio_std * mass_ratio,
-            "torque_load_ratio_max": features.torque_load_ratio_max * mass_ratio,
-            "tcp_force_norm": features.tcp_force_norm * mass_ratio,
+            "motor_load_ratio_max": features.motor_load_ratio_max * mass_ratio_load,
+            "motor_load_ratio_mean": features.motor_load_ratio_mean * mass_ratio_load,
+            "motor_load_ratio_std": features.motor_load_ratio_std * mass_ratio_load,
+            "torque_load_ratio_max": features.torque_load_ratio_max * mass_ratio_load,
+            "tcp_force_norm": features.tcp_force_norm * mass_ratio_load,
             "velocity_intensity_max": features.velocity_intensity_max * duration_ratio,
             "cycle_intensity": datasheet.rated_cycle_time_s / pick_duration_s,
+            "temp_delta_normalized_max": _clamp(
+                features.temp_delta_normalized_max * mass_ratio_temp, TEMP_DELTA_CLAMP
+            ),
+            "temp_delta_normalized_mean": _clamp(
+                features.temp_delta_normalized_mean * mass_ratio_temp, TEMP_DELTA_CLAMP
+            ),
             "payload_class": payload_class,
         }
     )
