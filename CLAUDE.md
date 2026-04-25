@@ -42,15 +42,15 @@ docs/research/      # Daten-Discovery, Entscheidungen, offene Fragen
 
 Stand: Quellverzeichnisse sind leer. Wenn du die ersten Dateien anlegst, halte dich an die Ordnerteilung (Python-Code nur unter `apps/backend/src/`, Frontend nur unter `apps/frontend/`) und lege geteilte Mock-/Fixture-Daten in `data/` ab statt sie in App-Ordnern zu duplizieren.
 
-**`data/` ist gitignored.** Große Datasets (z.B. PHM Society 2021 SCARA unter `data/phm-society-2021/`) werden nicht committet — stattdessen Download-Instruktionen im Doc ablegen. Kleine Fixtures/Mocks können bei Bedarf explizit per `-f` geforced werden.
+**`data/` ist gitignored.** Große Datasets (z.B. NIST UR5-Degradation unter `data/nist-ur5-degradation/`, PHM Society 2021 SCARA unter `data/phm-society-2021/`) werden nicht committet — stattdessen Download-Instruktionen im Doc ablegen. Kleine Fixtures/Mocks können bei Bedarf explizit per `-f` geforced werden.
 
 Build-, Lint-, Test- und Dev-Run-Befehle sind noch nicht definiert. Bevor du welche in diese Datei schreibst, müssen sie tatsächlich existieren (`pyproject.toml`, `package.json`). Nicht vorab erfinden.
 
 ## Primary-Datensatz
 
-**PHM Society 2021 Data Challenge — SCARA (CSEM)**, lokal unter `data/phm-society-2021/`. 143 Files, ~170 h Betrieb, 51 Sensor-Felder inkl. `EPOSCurrent`, `EPOSPosition`, `EPOSVelocity`, `DurationPickToPick`, `FuseHeatSlope`, `Vacuum`. Klassen: `class_0` (gesund) + `class_2/3/4/5/7/9/11/12` (Fehlertypen). Fenster: 10 s, 361 Windows pro File.
+**NIST UR5-Degradation**, lokal unter `data/nist-ur5-degradation/`. 6-DOF Universal-Robots-Cobot, 73 Sensor-Felder bei 125 Hz, 18 Test-Konfigurationen × 3 Wiederholungen mit expliziter Payload-Stratifikation (16 lb / 45 lb), Speed-Stratifikation (fullspeed / halfspeed) und Coldstart-Variante. Kern-Felder pro Joint J1–J6: `actual_current_J{1..6}`, `actual_position_J{1..6}`, `actual_velocity_J{1..6}`, `target_torque_J{1..6}`, `joint_temperature_J{1..6}`; plus TCP-Pose und TCP-Wrench. Keine expliziten Failure-Labels — Degradation manifestiert sich implizit über Run-Index 1/2/3 und Coldstart-Flag.
 
-Das Wear-Rate-Modell wird auf diesen Daten trainiert — Ziel ist ein kontinuierlicher Wear-Rate-Multiplier (nicht RUL-Regression, nicht Fault-Classification). Siehe Konzept-v2 für Architektur und `docs/research/mechanics.md` für Normalisierungs-Schema.
+Das Wear-Rate-Modell wird auf diesen Daten trainiert — Ziel ist ein kontinuierlicher Wear-Rate-Multiplier (nicht RUL-Regression, nicht Fault-Classification). Trainingsbasis: Run 1 aller Konfigurationen (frischer Zustand). Foreign-Top für UCS-Demo: PHM Society 2021 SCARA. Siehe Konzept-v2 für Architektur, `docs/research/datasets.md` für Datensatz-Details, `docs/research/mechanics.md` für Normalisierungs-Schema.
 
 ## Hackathon-spezifische Erwartungen
 

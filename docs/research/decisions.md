@@ -8,7 +8,25 @@ Autoritative Konzept-Quelle: `docs/idea-concept/unifi_konzept_v2.md`.
 
 ## Getroffen
 
-### 2026-04-24 — Primary-Datensatz
+### 2026-04-25 — Primary-Datensatz-Wechsel auf NIST UR5-Degradation *(ersetzt 2026-04-24-Wahl)*
+
+**NIST UR5-Degradation** (lokal unter `data/nist-ur5-degradation/`) ist neuer Primary. PHM Society 2021 SCARA wandert in die Foreign-Top-Rolle (Schema-Mapping-Demo).
+
+**Begründung:** echter 6-DOF-Cobot, 73 sprechende Sensor-Felder bei 125 Hz, **explizite Payload-Stratifikation 16 lb / 45 lb** in den Daten — direkter Treffer für den „variable Last"-Use-Case ohne synthetische Last-Mix-Konstruktion. Joint-Granularität (6 Ströme, 6 Temperaturen) liefert reichere Wear-Rate-Features als die globale Temperatur in PHM SCARA. Offizielles UR5-Datenblatt im Datensatz-Bundle vorhanden — kein FANUC-Stellvertreter mehr nötig. NIST-Branding stärkt Pitch-Glaubwürdigkeit.
+
+**Konsequenzen:**
+- Kein `class_0`-Trainingsset; Trainingsbasis ist **Run 1 aller 18 Konfigurationen** (frischer Zustand). Run 2/3 + Coldstart-Variante dienen zur impliziten Degradations-Validierung.
+- Keine native `DurationPickToPick`-Aggregation — Pick-Zyklen werden aus TCP-Z-Bewegung + Joint-Velocity-Mustern detektiert; alternativ Run-Index als Pseudo-Zyklusachse. Entscheidung in `open-questions.md`.
+- Label-Felder gemappt: `EPOSCurrent` → `max(actual_current_J{1..6})`, `Temperature` → `max(joint_temperature_J{1..6})`.
+- PHM SCARA bleibt aktiv als Foreign-Top für die UCS-Demo (schärfster Schema-Kontrast: 4-DOF Pick-Cycle-Aggregate vs. UR5 6-DOF Joint-Stream).
+
+**Noch ausstehend:** Lizenz UR5-NIST formal verifizieren (NIST-Standardannahme: Public Domain).
+
+**Konzept-v2** wurde durchgängig auf den neuen Primary umgeschrieben (siehe Update-Banner oben in `unifi_konzept_v2.md`). `scope.md`, `datasets.md`, `mechanics.md`, `CLAUDE.md` ebenfalls. Discovery-Phase-Stand vom 2026-04-24 (1156 Zeilen `datasets.md` + ausführliche `scope.md`) ist nach `archive/2026-04-24-discovery/` verlagert.
+
+---
+
+### 2026-04-24 — Primary-Datensatz *(superseded am 2026-04-25)*
 
 **PHM Society 2021 Europe Data Challenge — SCARA-Roboter (CSEM).**
 
