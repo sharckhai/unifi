@@ -69,6 +69,7 @@ const UNIFI_API_BASE_URL =
 const LIVE_CHART_WINDOW_SIZE = telemetryData.length;
 const DAILY_PICK_PROJECTION = 14400;
 const PAY_PER_PICK_REVENUE_MULTIPLIER = 1.15 * 1.25;
+const INITIAL_ROBOT_VALUE_EUR = 23000;
 
 function readInitialRobotTheme(): RobotColorTheme {
   if (typeof window === "undefined") {
@@ -92,6 +93,18 @@ function readInitialRobotTheme(): RobotColorTheme {
   }
 
   return ROBOT_COLOR_THEMES[0].id;
+}
+
+// Robots-page links pass each robot's asset value via the `assetValue`
+// query param so the live demo opens with the right residual figure
+// (e.g., the freshly added 35 k€ UR5 from the deal-desk flow).
+function readInitialRobotValueEur(): number {
+  if (typeof window === "undefined") return INITIAL_ROBOT_VALUE_EUR;
+  const raw = new URLSearchParams(window.location.search).get("assetValue");
+  if (!raw) return INITIAL_ROBOT_VALUE_EUR;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return INITIAL_ROBOT_VALUE_EUR;
+  return parsed;
 }
 
 type TelemetryPoint = (typeof telemetryData)[number];
@@ -118,6 +131,7 @@ type ApiSimulatePickResponse = {
   cost: ApiCostBreakdown;
   live_residual: {
     residual_value_eur: number;
+    cost_new_eur: number;
   };
 };
 
@@ -237,7 +251,10 @@ function formatPickLabel(pickNumber: number) {
   return `Pick ${pickNumber.toString().padStart(2, "0")}`;
 }
 
-async function postSimulatedPick(event: SortedCubeEvent): Promise<LiveWearCostResponse> {
+async function postSimulatedPick(
+  event: SortedCubeEvent,
+  initialRobotValueEur: number,
+): Promise<LiveWearCostResponse> {
   const response = await fetch(`${UNIFI_API_BASE_URL}/simulate/pick`, {
     method: "POST",
     headers: {
@@ -264,6 +281,10 @@ async function postSimulatedPick(event: SortedCubeEvent): Promise<LiveWearCostRe
   }
 
   const body = (await response.json()) as ApiSimulatePickResponse;
+  const decay =
+    body.live_residual.cost_new_eur > 0
+      ? 1 - body.live_residual.residual_value_eur / body.live_residual.cost_new_eur
+      : 0;
 
   return {
     pickNumber: event.totalSorted,
@@ -276,7 +297,7 @@ async function postSimulatedPick(event: SortedCubeEvent): Promise<LiveWearCostRe
     energy: body.cost.energy_eur,
     capital: body.cost.capital_eur,
     maintenance: body.cost.maintenance_eur,
-    robotValue: body.live_residual.residual_value_eur,
+    robotValue: initialRobotValueEur * (1 - decay),
   };
 }
 
@@ -404,22 +425,13 @@ function Sparkline({
 export default function Home() {
   const [sortedPickCount, setSortedPickCount] = useState(0);
   const [selectedRobotTheme] = useState<RobotColorTheme>(() => readInitialRobotTheme());
+  const [initialRobotValueEur] = useState<number>(() => readInitialRobotValueEur());
   const [liveTelemetryData, setLiveTelemetryData] = useState<LiveTelemetryPoint[]>([]);
   const [lastRequest, setLastRequest] = useState<SortedCubeEvent | null>(null);
   const [lastApiResult, setLastApiResult] = useState<LiveWearCostResponse | null>(null);
   const [pickCostEffect, setPickCostEffect] = useState<PickCostEffectPayload | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [initialRobotValue, setInitialRobotValue] = useState<number | null>(null);
   const latestRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetch(`${UNIFI_API_BASE_URL}/residual/live`, { signal: controller.signal })
-      .then((response) => response.json() as Promise<{ residual: { residual_value_eur: number } }>)
-      .then((body) => setInitialRobotValue(body.residual.residual_value_eur))
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, []);
 
   const handleCubeSorted = useCallback((event: SortedCubeEvent) => {
     const requestId = latestRequestIdRef.current + 1;
@@ -428,7 +440,7 @@ export default function Home() {
     setLastRequest(event);
     setApiError(null);
 
-    void postSimulatedPick(event)
+    void postSimulatedPick(event, initialRobotValueEur)
       .then((response) => {
         setLiveTelemetryData((currentData) => {
           const templatePoint = telemetryData[(response.pickNumber - 1) % telemetryData.length];
@@ -462,7 +474,7 @@ export default function Home() {
           setApiError(error instanceof Error ? error.message : "FastAPI request failed.");
         }
       });
-  }, []);
+  }, [initialRobotValueEur]);
   const visibleTelemetryData = useMemo(
     () =>
       liveTelemetryData.length > 0
@@ -646,7 +658,7 @@ export default function Home() {
                   ? formatCurrency(costPerPick)
                   : kpi.dataKey === "dailyRevenue"
                     ? formatCurrency(projectedDailyRevenue, 2)
-                    : formatWholeCurrency(lastApiResult?.robotValue ?? initialRobotValue ?? 0);
+                    : formatWholeCurrency(lastApiResult?.robotValue ?? initialRobotValueEur);
 
             return (
               <div key={kpi.label} className="border-blue-500/15 px-4 py-3 md:border-r md:last:border-r-0">

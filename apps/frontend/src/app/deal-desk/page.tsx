@@ -2,12 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Download,
   FileText,
   Loader2,
+  Plus,
   Settings,
   Upload,
 } from "lucide-react";
@@ -16,17 +20,16 @@ import {
   type Offer,
   type StepEvent,
 } from "@/lib/dealDeskStream";
+import {
+  appendFleetRobot,
+  buildFleetEntryFromOffer,
+} from "@/lib/fleetStorage";
+import { RobotThumbnail } from "@/components/robot-scene/RobotThumbnail";
 
 type RunStatus = "idle" | "uploading" | "streaming" | "done" | "error";
 
-const RESULT_TRUNCATE_CHARS = 600;
-
 function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
-}
-
-function truncate(text: string, limit = RESULT_TRUNCATE_CHARS): string {
-  return text.length <= limit ? text : `${text.slice(0, limit).trimEnd()}\n…[+${text.length - limit} more]`;
 }
 
 function formatBytes(bytes: number): string {
@@ -53,6 +56,8 @@ function formatEurFine(value: number): string {
 }
 
 export default function DealDeskPage() {
+  const router = useRouter();
+
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const [offer, setOffer] = useState<Offer | null>(null);
@@ -62,18 +67,44 @@ export default function DealDeskPage() {
 
   const traceContainerRef = useRef<HTMLDivElement | null>(null);
   const traceBottomRef = useRef<HTMLDivElement | null>(null);
+  const offerSectionRef = useRef<HTMLElement | null>(null);
 
-  // Auto-scroll only if user is already near the bottom — preserves
-  // manual scroll-up while reviewing earlier steps.
+  // Inner trace container auto-scroll. Use direct `scrollTop` instead of
+  // `scrollIntoView` so the scroll does not bubble up to the window —
+  // otherwise the whole page would jump every time a new step lands.
   useEffect(() => {
     const container = traceContainerRef.current;
     if (!container) return;
     const distanceFromBottom =
       container.scrollHeight - container.scrollTop - container.clientHeight;
     if (distanceFromBottom < 80) {
-      traceBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      container.scrollTop = container.scrollHeight;
     }
   }, [steps.length, offer]);
+
+  // While the agent is running, keep the window pinned to the bottom so
+  // the trace panel stays in view as new tool cards arrive. We snap
+  // (instant) instead of smooth-scrolling — smooth pulses look worse
+  // when steps stream in quick succession.
+  useEffect(() => {
+    if (status !== "uploading" && status !== "streaming") return;
+    if (offer !== null) return; // hand-off to offer-scroll logic
+    window.scrollTo({ top: document.documentElement.scrollHeight });
+  }, [status, steps.length, offer]);
+
+  // When the agent finishes, smooth-scroll the page so the offer
+  // dashboard slides into view.
+  useEffect(() => {
+    if (offer !== null) {
+      offerSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [offer]);
+
+  const handleAddToFleet = useCallback(() => {
+    if (!offer) return;
+    appendFleetRobot(buildFleetEntryFromOffer(offer));
+    router.push("/robots");
+  }, [offer, router]);
 
   const handleFile = useCallback((file: File) => {
     if (!file.name.toLowerCase().endsWith(".pdf")) {
@@ -253,7 +284,12 @@ export default function DealDeskPage() {
           <DoneIndicator status={status} />
 
           {showOffer && offer && (
-            <OfferDashboard offer={offer} onDownload={handleDownloadOffer} />
+            <OfferDashboard
+              offer={offer}
+              onDownload={handleDownloadOffer}
+              onAddToFleet={handleAddToFleet}
+              sectionRef={offerSectionRef}
+            />
           )}
         </section>
       </main>
@@ -410,50 +446,71 @@ function TracePanel({ steps, status, containerRef, bottomRef }: TracePanelProps)
 
 function TraceRow({ step }: { step: StepEvent }) {
   const hasError = step.error !== null;
+  const [expanded, setExpanded] = useState(hasError);
+  const argsText = formatJson(step.args);
   const resultText = hasError
     ? step.error ?? ""
-    : truncate(formatJson(step.result_jsonable));
-  const argsText = formatJson(step.args);
+    : formatJson(step.result_jsonable);
+  const hasArgs = Object.keys(step.args).length > 0;
 
   return (
     <article
-      className={`mb-3 border-l-2 px-3 py-2 text-xs ${
+      className={`mb-2 overflow-hidden border-l-2 text-xs transition ${
         hasError
           ? "border-red-400 bg-red-50/60"
-          : "border-blue-500/40 bg-white/60"
+          : "border-blue-500/40 bg-white/60 hover:bg-white/80"
       }`}
     >
-      <header className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        aria-expanded={expanded}
+      >
         {hasError ? (
-          <AlertCircle className="h-3.5 w-3.5 text-red-500" aria-hidden="true" />
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" aria-hidden="true" />
         ) : (
-          <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" aria-hidden="true" />
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-blue-600" aria-hidden="true" />
         )}
         <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-slate-500">
           Step {step.turn}
         </span>
-        <span className="font-mono text-[12px] font-semibold text-[var(--unifi-ink)]">
+        <span className="flex-1 truncate font-mono text-[12px] font-semibold text-[var(--unifi-ink)]">
           {step.name}
         </span>
-      </header>
-      {Object.keys(step.args).length > 0 && (
-        <div className="mt-2">
-          <p className="micro-label text-slate-500">args</p>
-          <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-slate-700">
-            {argsText}
-          </pre>
+        {hasError && (
+          <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-red-500">
+            error
+          </span>
+        )}
+        {expanded ? (
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
+        )}
+      </button>
+      {expanded && (
+        <div className="border-t border-blue-500/10 bg-white/50 px-3 py-2">
+          {hasArgs && (
+            <div>
+              <p className="micro-label text-slate-500">args</p>
+              <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-slate-700">
+                {argsText}
+              </pre>
+            </div>
+          )}
+          <div className={hasArgs ? "mt-3" : ""}>
+            <p className="micro-label text-slate-500">{hasError ? "error" : "result"}</p>
+            <pre
+              className={`mt-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-5 ${
+                hasError ? "text-red-700" : "text-slate-700"
+              }`}
+            >
+              {resultText}
+            </pre>
+          </div>
         </div>
       )}
-      <div className="mt-2">
-        <p className="micro-label text-slate-500">{hasError ? "error" : "result"}</p>
-        <pre
-          className={`mt-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-5 ${
-            hasError ? "text-red-700" : "text-slate-700"
-          }`}
-        >
-          {resultText}
-        </pre>
-      </div>
     </article>
   );
 }
@@ -487,27 +544,55 @@ function DoneIndicator({ status }: { status: RunStatus }) {
 function OfferDashboard({
   offer,
   onDownload,
+  onAddToFleet,
+  sectionRef,
 }: {
   offer: Offer;
   onDownload: () => void;
+  onAddToFleet: () => void;
+  sectionRef: React.RefObject<HTMLElement | null>;
 }) {
   return (
-    <section className="panel-glass border border-blue-500/15 p-5 lg:p-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
-        <div>
-          <p className="micro-label text-blue-700/80">Generated Offer</p>
-          <h2 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[var(--unifi-ink)]">
-            {offer.header.customer_name}
-          </h2>
+    <section
+      ref={sectionRef}
+      className="panel-glass border border-blue-500/15 p-5 lg:p-6"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={onAddToFleet}
+            className="inline-flex items-center justify-center gap-2 border border-blue-600 bg-blue-600 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white transition hover:bg-blue-700"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Add to Fleet
+          </button>
+          <div>
+            <p className="micro-label text-blue-700/80">Generated Offer</p>
+            <h2 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[var(--unifi-ink)]">
+              {offer.header.customer_name}
+            </h2>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={onDownload}
-          className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50"
-        >
-          <Download className="h-3.5 w-3.5" aria-hidden="true" />
-          Download JSON
-        </button>
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={onDownload}
+            className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50"
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            Download JSON
+          </button>
+          <div
+            className="relative h-20 w-28 shrink-0 overflow-hidden border border-blue-500/15"
+            style={{
+              background:
+                "radial-gradient(circle at 20% 18%, rgba(31,85,255,0.18), transparent 6rem), linear-gradient(135deg, rgba(255,255,255,0.85), rgba(31,85,255,0.06))",
+            }}
+          >
+            <RobotThumbnail theme="white" className="h-full w-full" />
+          </div>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
