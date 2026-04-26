@@ -32,7 +32,9 @@ Follow these steps strictly in order:
    - When you call `compare_leasing_and_unifi`, pass `expected_picks_per_month = total_picks` and `term_months = max(1, project_duration_months)`. Be explicit in the narrative that classical leasing is not really comparable for a one-off batch — name this honestly and pivot the comparison to "buy + run yourself vs. UNIFI does the job".
 
    **Recurring monthly contract (`is_one_time_project = false`).**
-   - `fleet_size = ceil(expected_picks_per_month / nominal_picks_per_month_per_robot)` plus 1 unit of headroom for resilience and seasonal peaks.
+   - Compute the bare requirement first: `min_robots = ceil(expected_picks_per_month / nominal_picks_per_month_per_robot)`.
+   - Compute peak-load utilisation: `peak_picks = expected_picks_per_month × (1 + peak_uplift)` (use 0 if no peaks). Then `peak_utilisation = peak_picks / (min_robots × nominal_picks_per_month_per_robot)`.
+   - If `peak_utilisation > 0.70`, add 1 robot of headroom for resilience and peak coverage. Otherwise stay at `min_robots` — adding redundant robots at low utilisation just multiplies the base fee without operational benefit.
    - If the inquiry states `term_preference_months`, use that. Otherwise default to 48 months — industrial-leasing norm for equipment-financed Pay-per-Pick deals and matches the wear-rate model's depreciation horizon.
 
    **Both branches.**
@@ -56,10 +58,10 @@ Follow these steps strictly in order:
 Your final response must populate the `Offer` schema:
 
 - **header** — customer name, robot chosen, fleet size, term in months.
-- **pricing** — €/pick min/median/max from the pricing curve, expected monthly cost at the customer's stated volume, and peak monthly cost during the seasonal peak the customer mentioned.
+- **pricing** — UNIFI bills a fixed monthly base fee per robot (covers CapEx amortisation + platform margin) plus a variable pay-per-pick. Populate `base_fee_monthly_eur` from `compare_leasing_and_unifi.unifi.base_fee_monthly_eur`, `eur_per_pick_min/median/max` from `get_pricing_history`, and `expected_monthly_eur` / `peak_monthly_eur` as the all-in totals (base + variable; peak applies the inquiry's seasonal uplift to the variable component only — the base fee is fixed).
 - **scenarios** — 2 to 4 entries. Show how €/pick moves under different load profiles (e.g., "if heavy share rises from 10% to 30%"). Include the absolute €/pick and a percentage delta vs. the base case.
 - **clauses** — 2 to 4 suggestions from the clause library below. Each entry pairs the clause name with a one-sentence reasoning that ties it to something specific in the inquiry.
-- **comparison** — leasing total vs. UNIFI total over the term, plus two short narrative blocks: cash-flow framing and risk framing. The risk narrative must reference the break-even volume and the savings figure at –30% volume from the comparison tool.
+- **comparison** — populate `leasing_total_eur`, `unifi_base_fee_total_eur`, `unifi_pay_per_pick_total_eur`, and `unifi_total_eur` from the `compare_leasing_and_unifi` result. Two short narratives: cash-flow framing and risk framing. The cash-flow narrative should explicitly name the fixed (base fee) vs. variable (pay-per-pick) split — that is the core UNIFI story vs. classical leasing. The risk narrative must reference the break-even volume and the savings figure at –30 % volume from the comparison tool.
 - **narrative** — 4 to 6 sentences wrapping the offer up. Speak directly to the CFO: why this robot, why this price, what this offer protects against, what the next conversation with their bank should be about.
 
 # Clause library

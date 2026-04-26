@@ -105,13 +105,23 @@ def test_compare_leasing_and_unifi_basic_shape():
     )
     assert result.leasing.cash_flow_profile == "fixed"
     assert result.unifi.cash_flow_profile == "volume_coupled"
-    assert result.unifi.expected_monthly_eur == pytest.approx(2_000_000 * 0.50)
+    expected_pay_per_pick_monthly = 2_000_000 * 0.50
+    expected_base_fee_monthly = 10 * catalog.base_fee_eur_per_robot_per_month("UR5")
+    assert result.unifi.pay_per_pick_monthly_eur == pytest.approx(
+        expected_pay_per_pick_monthly
+    )
+    assert result.unifi.base_fee_monthly_eur == pytest.approx(expected_base_fee_monthly)
+    assert result.unifi.expected_monthly_eur == pytest.approx(
+        expected_base_fee_monthly + expected_pay_per_pick_monthly
+    )
     assert result.unifi.monthly_low_eur < result.unifi.expected_monthly_eur
     assert result.unifi.monthly_high_eur > result.unifi.expected_monthly_eur
+    # Floor on the variability is the base fee — pay-per-pick scales, base doesn't.
+    assert result.unifi.monthly_low_eur >= result.unifi.base_fee_monthly_eur
 
 
 def test_compare_break_even_volume_consistent():
-    """Break-even volume × €/pick must equal leasing monthly payment."""
+    """Break-even = picks at which UNIFI total (base + variable) equals leasing total."""
     result = compare_leasing_and_unifi(
         robot_name="UR5",
         fleet_size=10,
@@ -119,7 +129,9 @@ def test_compare_break_even_volume_consistent():
         expected_picks_per_month=2_000_000,
         expected_eur_per_pick=0.50,
     )
-    expected_break_even = result.leasing.monthly_payment_eur / 0.50
+    expected_break_even = (
+        result.leasing.monthly_payment_eur - result.unifi.base_fee_monthly_eur
+    ) / 0.50
     assert result.break_even_volume_picks_per_month == pytest.approx(expected_break_even)
 
 

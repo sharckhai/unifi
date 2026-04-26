@@ -29,6 +29,7 @@ export type OfferHeader = {
 };
 
 export type OfferPricing = {
+  base_fee_monthly_eur: number;
   eur_per_pick_min: number;
   eur_per_pick_median: number;
   eur_per_pick_max: number;
@@ -50,6 +51,8 @@ export type ClauseSuggestion = {
 
 export type OfferComparison = {
   leasing_total_eur: number;
+  unifi_base_fee_total_eur: number;
+  unifi_pay_per_pick_total_eur: number;
   unifi_total_eur: number;
   cash_flow_narrative: string;
   risk_narrative: string;

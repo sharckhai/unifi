@@ -73,11 +73,12 @@ VALID_OFFER = {
         "term_months": 60,
     },
     "pricing": {
+        "base_fee_monthly_eur": 6000.0,
         "eur_per_pick_min": 0.40,
         "eur_per_pick_median": 0.48,
         "eur_per_pick_max": 0.58,
-        "expected_monthly_eur": 960_000.0,
-        "peak_monthly_eur": 1_152_000.0,
+        "expected_monthly_eur": 966_000.0,
+        "peak_monthly_eur": 1_158_000.0,
     },
     "scenarios": [
         {
@@ -99,7 +100,9 @@ VALID_OFFER = {
     ],
     "comparison": {
         "leasing_total_eur": 462_000.0,
-        "unifi_total_eur": 57_600_000.0,
+        "unifi_base_fee_total_eur": 360_000.0,
+        "unifi_pay_per_pick_total_eur": 57_600_000.0,
+        "unifi_total_eur": 57_960_000.0,
         "cash_flow_narrative": "UNIFI cash flow tracks volume; leasing is fixed.",
         "risk_narrative": "At -30% volume you save ~1.4 M€ vs. fixed leasing.",
     },

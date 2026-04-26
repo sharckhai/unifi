@@ -19,6 +19,23 @@ from unifi.ucs.schema import UcsDatasheet
 MONTHLY_LEASING_FACTOR: float = 0.022
 _DEFAULT_OPERATING_PROFILE = OperatingProfile()
 
+# Base fee per robot per month — covers ~80 % of the robot's purchase price
+# over a 48-month contract plus UNIFI's platform margin. Real-world RaaS
+# always combines a time-based component (covers CapEx + service margin)
+# with a usage-based component (covers OpEx + variable margin). Without it,
+# UNIFI implicitly subsidises low-utilisation customers — the robot sits on
+# UNIFI's balance sheet but is paid for only via the per-pick wear charge.
+_MONTHLY_BASE_FEE_EUR: dict[str, float] = {
+    "UR5": 600.0,
+    "SCARA": 400.0,
+}
+
+
+def base_fee_eur_per_robot_per_month(robot_name: str) -> float:
+    if robot_name not in _MONTHLY_BASE_FEE_EUR:
+        raise KeyError(robot_name)
+    return _MONTHLY_BASE_FEE_EUR[robot_name]
+
 
 UR5_DATASHEET = UcsDatasheet(
     model="Universal Robots UR5",

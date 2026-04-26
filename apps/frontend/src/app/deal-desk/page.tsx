@@ -517,13 +517,21 @@ function OfferDashboard({
       <div className="mt-5 grid gap-3 lg:grid-cols-2">
         <div className="border border-blue-500/15 bg-white/55 p-4">
           <p className="micro-label text-slate-500">Pricing</p>
-          <p className="mt-2 font-mono text-[13px] text-[var(--unifi-ink)]">
-            {formatEurFine(offer.pricing.eur_per_pick_min)} – {formatEurFine(offer.pricing.eur_per_pick_max)}
-            <span className="ml-1 text-slate-500"> / pick</span>
-          </p>
-          <dl className="mt-3 space-y-1 text-xs text-slate-600">
+          <dl className="mt-2 space-y-1 text-xs text-slate-600">
             <div className="flex justify-between">
-              <dt>Expected monthly</dt>
+              <dt>Base fee (fixed)</dt>
+              <dd className="font-mono">{formatEur(offer.pricing.base_fee_monthly_eur)} / mo</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Pay-per-pick (variable)</dt>
+              <dd className="font-mono">
+                {formatEurFine(offer.pricing.eur_per_pick_min)} – {formatEurFine(offer.pricing.eur_per_pick_max)}
+              </dd>
+            </div>
+          </dl>
+          <dl className="mt-3 space-y-1 border-t border-blue-500/10 pt-3 text-xs text-slate-600">
+            <div className="flex justify-between">
+              <dt>Expected monthly (base + variable)</dt>
               <dd className="font-mono">{formatEur(offer.pricing.expected_monthly_eur)}</dd>
             </div>
             <div className="flex justify-between">
@@ -541,6 +549,14 @@ function OfferDashboard({
               <dd className="font-mono">{formatEur(offer.comparison.leasing_total_eur)}</dd>
             </div>
             <div className="flex justify-between">
+              <dt>UNIFI base fee total</dt>
+              <dd className="font-mono">{formatEur(offer.comparison.unifi_base_fee_total_eur)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>UNIFI pay-per-pick total</dt>
+              <dd className="font-mono">{formatEur(offer.comparison.unifi_pay_per_pick_total_eur)}</dd>
+            </div>
+            <div className="flex justify-between border-t border-blue-500/10 pt-1 font-semibold">
               <dt>UNIFI total</dt>
               <dd className="font-mono">{formatEur(offer.comparison.unifi_total_eur)}</dd>
             </div>

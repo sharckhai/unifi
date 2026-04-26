@@ -213,9 +213,13 @@ def compare_leasing_and_unifi(
 ) -> LeasingComparison:
     """Cash-flow + risk comparison. No balance-sheet inputs.
 
-    `expected_eur_per_pick` is the median from `get_pricing_history` for
-    the dominant weight class — passed in by the agent so this tool stays
-    arithmetic-only.
+    UNIFI-Pricing kombiniert eine zeitbasierte Base Fee pro Roboter
+    (deckt CapEx-Anteil + Plattform-Marge) mit dem Pay-per-Pick
+    (`expected_eur_per_pick` = production cost aus get_pricing_history).
+    Ohne die Base Fee subventioniert UNIFI implizit niedrige
+    Auslastung — der Roboter steht auf UNIFIs Bilanz, refinanziert
+    wird er aber nur über den Wear-Anteil pro tatsächlich gefahrenem
+    Pick.
     """
     datasheet = catalog.get_datasheet(robot_name)
     leasing_monthly = (
@@ -223,14 +227,29 @@ def compare_leasing_and_unifi(
     )
     leasing_total = leasing_monthly * term_months
 
-    unifi_monthly_expected = expected_eur_per_pick * expected_picks_per_month
-    unifi_total = unifi_monthly_expected * term_months
-    unifi_monthly_low = unifi_monthly_expected * 0.7
-    unifi_monthly_high = unifi_monthly_expected * 1.3
+    base_fee_per_robot = catalog.base_fee_eur_per_robot_per_month(robot_name)
+    base_fee_monthly = base_fee_per_robot * fleet_size
+    base_fee_total = base_fee_monthly * term_months
 
-    break_even = (
-        leasing_monthly / expected_eur_per_pick if expected_eur_per_pick > 0 else 0.0
-    )
+    pay_per_pick_monthly = expected_eur_per_pick * expected_picks_per_month
+    pay_per_pick_total = pay_per_pick_monthly * term_months
+
+    unifi_monthly_expected = base_fee_monthly + pay_per_pick_monthly
+    unifi_total = base_fee_total + pay_per_pick_total
+    # Variability comes from the pay-per-pick component only — the base
+    # fee is fixed regardless of volume.
+    unifi_monthly_low = base_fee_monthly + pay_per_pick_monthly * 0.7
+    unifi_monthly_high = base_fee_monthly + pay_per_pick_monthly * 1.3
+
+    # Break-even = picks/month at which UNIFI total equals classical
+    # leasing total. Solve: leasing_monthly = base_fee_monthly +
+    # picks × eur_per_pick.
+    if expected_eur_per_pick > 0:
+        break_even = max(
+            0.0, (leasing_monthly - base_fee_monthly) / expected_eur_per_pick
+        )
+    else:
+        break_even = 0.0
     savings_at_minus_30 = (leasing_monthly - unifi_monthly_low) * term_months
 
     return LeasingComparison(
@@ -244,9 +263,13 @@ def compare_leasing_and_unifi(
             cash_flow_profile="fixed",
         ),
         unifi=UnifiSide(
+            base_fee_monthly_eur=base_fee_monthly,
+            pay_per_pick_monthly_eur=pay_per_pick_monthly,
             expected_monthly_eur=unifi_monthly_expected,
             monthly_low_eur=unifi_monthly_low,
             monthly_high_eur=unifi_monthly_high,
+            base_fee_total_eur=base_fee_total,
+            pay_per_pick_total_eur=pay_per_pick_total,
             total_cost_over_term_eur=unifi_total,
             cash_flow_profile="volume_coupled",
         ),

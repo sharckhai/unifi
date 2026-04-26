@@ -143,16 +143,21 @@ type TooltipContentProps = {
   currency?: boolean;
 };
 
-function formatCurrency(value: number) {
-  return `€${value.toFixed(4)}`;
+function formatNumber(value: number, fractionDigits: number) {
+  return new Intl.NumberFormat("de-DE", {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}
+
+function formatCurrency(value: number, fractionDigits = 4) {
+  return `${formatNumber(value, fractionDigits)} €`;
 }
 
 function formatWholeCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "EUR",
+  return `${new Intl.NumberFormat("de-DE", {
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(value)} €`;
 }
 
 function calculateAllInCost(
@@ -292,7 +297,7 @@ function ChartTooltip({ active, payload, label, unit = "", currency }: TooltipCo
             />
             <span>{item.name}</span>
             <span className="font-mono text-slate-800">
-              {currency ? formatCurrency(item.value ?? 0) : `${(item.value ?? 0).toFixed(2)}${unit}`}
+              {currency ? formatCurrency(item.value ?? 0) : `${formatNumber(item.value ?? 0, 2)}${unit}`}
             </span>
           </div>
         ))}
@@ -340,7 +345,7 @@ function WearFactorChart({
         <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
           <CartesianGrid vertical={false} stroke="rgba(31,85,255,0.16)" strokeDasharray="2 6" />
           <XAxis dataKey="label" interval={5} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#687385" }} />
-          <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#687385" }} tickFormatter={(value) => `${value.toFixed(1)}x`} />
+          <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#687385" }} tickFormatter={(value) => `${formatNumber(value, 1)}x`} />
           <Tooltip content={<ChartTooltip unit="x" />} />
           {activeLabel ? <ReferenceLine x={activeLabel} stroke="#1f55ff" strokeOpacity={0.36} strokeDasharray="4 4" /> : null}
           <Line isAnimationActive={false} type="monotone" dataKey="wear" name="Wear Factor" stroke="#1f55ff" strokeWidth={2} dot={{ r: 2, fill: "#f7f5ef", strokeWidth: 1.5 }} activeDot={{ r: 4 }} />
@@ -365,7 +370,7 @@ function CostStackChart({
         <AreaChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: -18 }}>
           <CartesianGrid vertical={false} stroke="rgba(31,85,255,0.16)" strokeDasharray="2 6" />
           <XAxis dataKey="label" interval={5} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#687385" }} />
-          <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#687385" }} tickFormatter={(value) => `€${value.toFixed(3)}`} />
+          <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#687385" }} tickFormatter={(value) => `${formatNumber(value, 3)} €`} />
           <Tooltip content={<ChartTooltip currency />} />
           {activeLabel ? <ReferenceLine x={activeLabel} stroke="#1f55ff" strokeOpacity={0.36} strokeDasharray="4 4" /> : null}
           <Area isAnimationActive={false} type="monotone" stackId="1" dataKey="wearCost" name="Wear & Tear" stroke="#1f55ff" fill="#1f55ff" fillOpacity={0.86} />
@@ -496,8 +501,8 @@ export default function Home() {
   const displayedWearFactor = lastApiResult?.wear ?? null;
   const animatedWearFactor = useAnimatedNumber(displayedWearFactor ?? 0);
   const lastPickNumber = lastRequest?.totalSorted ?? sortedPickCount;
-  const lastWeightLabel = lastRequest ? `${lastRequest.weightKg.toFixed(0)} kg` : "-";
-  const lastDurationLabel = lastRequest ? `${lastRequest.sortDurationSeconds.toFixed(2)} s` : "-";
+  const lastWeightLabel = lastRequest ? `${formatNumber(lastRequest.weightKg, 0)} kg` : "-";
+  const lastDurationLabel = lastRequest ? `${formatNumber(lastRequest.sortDurationSeconds, 2)} s` : "-";
 
   return (
     <div className="h-screen w-screen overflow-hidden p-3 font-sans text-[#172033] lg:p-5">
@@ -590,7 +595,7 @@ export default function Home() {
               <div className="mb-3 flex items-end justify-between">
                 <div>
                   <div className="font-mono text-4xl font-semibold tracking-[-0.06em] text-blue-700">
-                    {`${animatedWearFactor.toFixed(2)} x`}
+                    {`${formatNumber(animatedWearFactor, 2)} x`}
                   </div>
                   <div className="micro-label mt-1 text-blue-600">
                     Pick #{Math.max(1, lastPickNumber)}
@@ -625,12 +630,12 @@ export default function Home() {
             const value =
               kpi.dataKey === "wear"
                 ? displayedWearFactor === null
-                  ? "0.00 x"
-                  : `${displayedWearFactor.toFixed(2)} x`
+                  ? `${formatNumber(0, 2)} x`
+                  : `${formatNumber(displayedWearFactor, 2)} x`
                 : kpi.dataKey === "wearCost"
                   ? formatCurrency(costPerPick)
                   : kpi.dataKey === "dailyRevenue"
-                    ? formatCurrency(projectedDailyRevenue)
+                    ? formatCurrency(projectedDailyRevenue, 2)
                     : formatWholeCurrency(lastApiResult?.robotValue ?? 0);
 
             return (

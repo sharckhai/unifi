@@ -138,11 +138,26 @@ class LeasingSide(BaseModel):
 
 
 class UnifiSide(BaseModel):
+    """UNIFI-Pricing-Breakdown.
+
+    Real-world RaaS combines a time-based component (covers CapEx +
+    platform margin, billed regardless of volume) with a usage-based
+    component (covers OpEx + variable margin). The fields below split
+    those two so the offer can show the customer the fixed vs variable
+    portion explicitly.
+
+    `expected_monthly_eur = base_fee_monthly_eur + pay_per_pick_monthly_eur`
+    """
+
     model_config = ConfigDict(extra="forbid")
 
+    base_fee_monthly_eur: float
+    pay_per_pick_monthly_eur: float
     expected_monthly_eur: float
     monthly_low_eur: float
     monthly_high_eur: float
+    base_fee_total_eur: float
+    pay_per_pick_total_eur: float
     total_cost_over_term_eur: float
     cash_flow_profile: CashFlowProfile
 
@@ -188,8 +203,19 @@ class OfferHeader(BaseModel):
 
 
 class OfferPricing(BaseModel):
+    """Customer-facing pricing block.
+
+    `base_fee_monthly_eur` is the fixed monthly amount for the recommended
+    fleet (covers CapEx amortisation + UNIFI platform margin). The
+    `eur_per_pick_*` values are the variable component on top.
+
+    `expected_monthly_eur` and `peak_monthly_eur` are the all-in totals
+    (base + variable).
+    """
+
     model_config = ConfigDict(extra="forbid")
 
+    base_fee_monthly_eur: float
     eur_per_pick_min: float
     eur_per_pick_median: float
     eur_per_pick_max: float
@@ -201,6 +227,8 @@ class OfferComparison(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     leasing_total_eur: float
+    unifi_base_fee_total_eur: float
+    unifi_pay_per_pick_total_eur: float
     unifi_total_eur: float
     cash_flow_narrative: str
     risk_narrative: str
