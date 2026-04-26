@@ -409,7 +409,17 @@ export default function Home() {
   const [lastApiResult, setLastApiResult] = useState<LiveWearCostResponse | null>(null);
   const [pickCostEffect, setPickCostEffect] = useState<PickCostEffectPayload | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [initialRobotValue, setInitialRobotValue] = useState<number | null>(null);
   const latestRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`${UNIFI_API_BASE_URL}/residual/live`, { signal: controller.signal })
+      .then((response) => response.json() as Promise<{ residual: { residual_value_eur: number } }>)
+      .then((body) => setInitialRobotValue(body.residual.residual_value_eur))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   const handleCubeSorted = useCallback((event: SortedCubeEvent) => {
     const requestId = latestRequestIdRef.current + 1;
@@ -636,7 +646,7 @@ export default function Home() {
                   ? formatCurrency(costPerPick)
                   : kpi.dataKey === "dailyRevenue"
                     ? formatCurrency(projectedDailyRevenue, 2)
-                    : formatWholeCurrency(lastApiResult?.robotValue ?? 0);
+                    : formatWholeCurrency(lastApiResult?.robotValue ?? initialRobotValue ?? 0);
 
             return (
               <div key={kpi.label} className="border-blue-500/15 px-4 py-3 md:border-r md:last:border-r-0">
