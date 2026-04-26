@@ -24,6 +24,7 @@ import {
   appendFleetRobot,
   buildFleetEntryFromOffer,
 } from "@/lib/fleetStorage";
+import { RobotThumbnail } from "@/components/robot-scene/RobotThumbnail";
 
 type RunStatus = "idle" | "uploading" | "streaming" | "done" | "error";
 
@@ -68,17 +69,28 @@ export default function DealDeskPage() {
   const traceBottomRef = useRef<HTMLDivElement | null>(null);
   const offerSectionRef = useRef<HTMLElement | null>(null);
 
-  // Auto-scroll only if user is already near the bottom — preserves
-  // manual scroll-up while reviewing earlier steps.
+  // Inner trace container auto-scroll. Use direct `scrollTop` instead of
+  // `scrollIntoView` so the scroll does not bubble up to the window —
+  // otherwise the whole page would jump every time a new step lands.
   useEffect(() => {
     const container = traceContainerRef.current;
     if (!container) return;
     const distanceFromBottom =
       container.scrollHeight - container.scrollTop - container.clientHeight;
     if (distanceFromBottom < 80) {
-      traceBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      container.scrollTop = container.scrollHeight;
     }
   }, [steps.length, offer]);
+
+  // While the agent is running, keep the window pinned to the bottom so
+  // the trace panel stays in view as new tool cards arrive. We snap
+  // (instant) instead of smooth-scrolling — smooth pulses look worse
+  // when steps stream in quick succession.
+  useEffect(() => {
+    if (status !== "uploading" && status !== "streaming") return;
+    if (offer !== null) return; // hand-off to offer-scroll logic
+    window.scrollTo({ top: document.documentElement.scrollHeight });
+  }, [status, steps.length, offer]);
 
   // When the agent finishes, smooth-scroll the page so the offer
   // dashboard slides into view.
@@ -562,14 +574,25 @@ function OfferDashboard({
             </h2>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onDownload}
-          className="inline-flex items-center gap-2 self-start border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50 sm:self-auto"
-        >
-          <Download className="h-3.5 w-3.5" aria-hidden="true" />
-          Download JSON
-        </button>
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={onDownload}
+            className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50"
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            Download JSON
+          </button>
+          <div
+            className="relative h-20 w-28 shrink-0 overflow-hidden border border-blue-500/15"
+            style={{
+              background:
+                "radial-gradient(circle at 20% 18%, rgba(31,85,255,0.18), transparent 6rem), linear-gradient(135deg, rgba(255,255,255,0.85), rgba(31,85,255,0.06))",
+            }}
+          >
+            <RobotThumbnail theme="white" className="h-full w-full" />
+          </div>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">

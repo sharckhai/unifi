@@ -15,6 +15,20 @@ type RobotThumbnailProps = {
   pose?: JointPose;
 };
 
+function disposeScene(scene: THREE.Scene) {
+  scene.traverse((object) => {
+    if (object instanceof THREE.Mesh) {
+      object.geometry.dispose();
+      const material = object.material;
+      if (Array.isArray(material)) {
+        material.forEach((item) => item.dispose());
+      } else {
+        material.dispose();
+      }
+    }
+  });
+}
+
 export function RobotThumbnail({
   theme,
   className = "h-56 w-full",
@@ -30,21 +44,26 @@ export function RobotThumbnail({
       return;
     }
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // Use the container's actual size, falling back to a sensible
+    // default if the layout has not measured yet (e.g., when the
+    // grandparent uses `display: none` initially).
+    const initialWidth = container.clientWidth || 320;
+    const initialHeight = container.clientHeight || 224;
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      preserveDrawingBuffer: !interactive,
+    });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setSize(initialWidth, initialHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(
-      40,
-      container.clientWidth / container.clientHeight,
-      0.1,
-      100,
-    );
+    const camera = new THREE.PerspectiveCamera(40, initialWidth / initialHeight, 0.1, 100);
     const cameraDirection = new THREE.Vector3(3.7, 2.7, 5.2)
       .sub(new THREE.Vector3(0.08, 1.3, 0))
       .normalize();
@@ -106,6 +125,41 @@ export function RobotThumbnail({
     scene.add(keyLight);
     scene.add(new THREE.HemisphereLight(0xdce6ff, 0xf7f5ef, 2.35));
 
+    if (!interactive) {
+      // Static thumbnails: render once, snapshot to <img>, free the
+      // WebGL context immediately. Browsers cap simultaneous WebGL
+      // contexts (~16 in Chrome/Safari); rendering many static thumbs
+      // would otherwise evict the oldest contexts and blank random
+      // cards. Snapshotting keeps the visual but holds zero GPU.
+      renderer.render(scene, camera);
+
+      const dataUrl = renderer.domElement.toDataURL("image/png");
+      const image = document.createElement("img");
+      image.src = dataUrl;
+      image.alt = `3D Robot Thumbnail (${theme})`;
+      image.style.width = "100%";
+      image.style.height = "100%";
+      image.style.objectFit = "contain";
+      image.draggable = false;
+
+      if (renderer.domElement.parentElement === container) {
+        container.replaceChild(image, renderer.domElement);
+      }
+
+      disposeScene(scene);
+      renderer.dispose();
+      const gl = renderer.getContext();
+      gl.getExtension("WEBGL_lose_context")?.loseContext();
+
+      return () => {
+        if (image.parentElement === container) {
+          container.removeChild(image);
+        }
+      };
+    }
+
+    // Interactive path: keep the live WebGL renderer with animation +
+    // resize handling. Used by hero scenes, not the long fleet list.
     const resizeObserver = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
 
@@ -117,11 +171,8 @@ export function RobotThumbnail({
 
     let animationFrame = 0;
     const renderFrame = () => {
-      if (interactive) {
-        robot.rotation.y += 0.005;
-        animationFrame = window.requestAnimationFrame(renderFrame);
-      }
-
+      robot.rotation.y += 0.005;
+      animationFrame = window.requestAnimationFrame(renderFrame);
       renderer.render(scene, camera);
     };
 
@@ -131,19 +182,7 @@ export function RobotThumbnail({
     return () => {
       window.cancelAnimationFrame(animationFrame);
       resizeObserver.disconnect();
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
-
-          const material = object.material;
-
-          if (Array.isArray(material)) {
-            material.forEach((item) => item.dispose());
-          } else {
-            material.dispose();
-          }
-        }
-      });
+      disposeScene(scene);
       renderer.dispose();
 
       if (renderer.domElement.parentElement === container) {

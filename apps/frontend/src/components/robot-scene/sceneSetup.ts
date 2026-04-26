@@ -495,6 +495,7 @@ export async function startRobotScene(
   scene.add(fillLight);
 
   let animationFrame = 0;
+  let disposed = false;
   let activePointerId: number | null = null;
   let previousPointerX = 0;
   let previousPointerY = 0;
@@ -684,6 +685,9 @@ export async function startRobotScene(
   setCameraViewMode(cameraViewMode);
 
   const animate = () => {
+    if (disposed) {
+      return;
+    }
     const timestamp = performance.now();
     const delta = Math.min((timestamp - previousTimestamp) / 1000, 1 / 30);
     const elapsedSeconds = timestamp / 1000;
@@ -737,6 +741,7 @@ export async function startRobotScene(
   animate();
 
   const cleanup = () => {
+    disposed = true;
     window.cancelAnimationFrame(animationFrame);
     resizeObserver.disconnect();
     renderer.domElement.removeEventListener("pointerdown", handlePointerDown);

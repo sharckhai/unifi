@@ -332,6 +332,15 @@ function saveStoredTheme(theme: RobotColorTheme) {
   }
 }
 
+function poseForAsset(assetId: string): JointPose {
+  let hash = 0;
+  for (let i = 0; i < assetId.length; i += 1) {
+    hash = (hash * 31 + assetId.charCodeAt(i)) | 0;
+  }
+  const idx = Math.abs(hash) % thumbnailPoses.length;
+  return thumbnailPoses[idx];
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="hidden w-32 shrink-0 text-right sm:block">
@@ -461,15 +470,15 @@ export default function RobotsPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            {allRobots.map((robot, index) => {
-              const thumbnailPose = thumbnailPoses[index % thumbnailPoses.length];
+            {allRobots.map((robot) => {
+              const thumbnailPose = poseForAsset(robot.assetId);
               const isRunning = robot.status === "running";
               const statusLabel = isRunning ? "Running" : "Idle";
 
               return (
                 <Link
                   key={`${robot.isNew ? "new" : "static"}-${robot.assetId}`}
-                  href={`/?theme=${robot.theme}#robot`}
+                  href={`/?theme=${robot.theme}&assetValue=${robot.assetValueEur}#robot`}
                   onClick={() => saveStoredTheme(robot.theme)}
                   className={`panel-glass group flex items-center gap-6 overflow-hidden py-4 pl-4 pr-10 transition hover:shadow-[0_18px_45px_rgba(23,32,51,0.10)] ${
                     robot.isNew
