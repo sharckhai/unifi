@@ -51,7 +51,7 @@ const robotCards: RobotCard[] = [
     callSign: "Universal Robots UR5e",
     fleetClass: "Collaborative Cobot",
     mission: "E-Commerce Picks",
-    persona: "Anna sieht faire Stueckkosten",
+    persona: "Anna sees fair unit costs",
     signal: "Wear 0.92x",
     workload: "12 kg Mix",
     accent: "#2563eb",
@@ -65,8 +65,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-02",
     callSign: "FANUC CRX-10iA",
     fleetClass: "Lightweight Cobot",
-    mission: "Nachtschicht Reserve",
-    persona: "Marie prueft Restwert-Puffer",
+    mission: "Night Shift Reserve",
+    persona: "Marie reviews residual buffer",
     signal: "Idle Bond",
     workload: "Standby",
     accent: "#475569",
@@ -80,8 +80,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-03",
     callSign: "KUKA LBR iiwa 14",
     fleetClass: "Sensitive Arm",
-    mission: "Kuehlketten-Linie",
-    persona: "Jonas verkauft SLA-Stabilitaet",
+    mission: "Cold Chain Line",
+    persona: "Jonas sells SLA stability",
     signal: "Temp +3C",
     workload: "Pharma",
     accent: "#38bdf8",
@@ -95,8 +95,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-04",
     callSign: "ABB GoFa CRB 15000",
     fleetClass: "Payload Cobot",
-    mission: "Grenzlast-Kommissionierung",
-    persona: "Anna zahlt nur echte Last",
+    mission: "Max-Load Picking",
+    persona: "Anna pays only for real load",
     signal: "Wear 1.84x",
     workload: "45 lb Run",
     accent: "#c47a4a",
@@ -110,8 +110,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-05",
     callSign: "Yaskawa HC10DTP",
     fleetClass: "Human-Collab Arm",
-    mission: "Retouren-Zelle",
-    persona: "Marie liest Asset-Historie",
+    mission: "Returns Cell",
+    persona: "Marie reads asset history",
     signal: "Trace OK",
     workload: "Mixed SKU",
     accent: "#2563eb",
@@ -125,8 +125,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-06",
     callSign: "Omron TM5-900",
     fleetClass: "Vision Cobot",
-    mission: "Kosmetik & Kleinteile",
-    persona: "Jonas skaliert Billig-Picks",
+    mission: "Cosmetics & Small Parts",
+    persona: "Jonas scales low-cost picks",
     signal: "Wear 0.48x",
     workload: "50 g - 300 g",
     accent: "#34d399",
@@ -141,7 +141,7 @@ const robotCards: RobotCard[] = [
     callSign: "Doosan M1013",
     fleetClass: "High-Reach Cobot",
     mission: "Black-Friday Burst",
-    persona: "Anna sieht Peak-Preis fair",
+    persona: "Anna sees peak pricing as fair",
     signal: "Heat Watch",
     workload: "Fullspeed",
     accent: "#f97316",
@@ -155,8 +155,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-08",
     callSign: "Franka Research 3",
     fleetClass: "Force-Sensing Arm",
-    mission: "Randomisierte Pruef-Picks",
-    persona: "Marie findet Risiko-Fruehsignale",
+    mission: "Randomized Audit Picks",
+    persona: "Marie spots early risk signals",
     signal: "Drift 0.03",
     workload: "Audit",
     accent: "#8b5cf6",
@@ -170,8 +170,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-09",
     callSign: "Techman TM12",
     fleetClass: "AI Vision Cobot",
-    mission: "Solarstrom-Zeitfenster",
-    persona: "Anna senkt Energieanteil",
+    mission: "Solar Power Window",
+    persona: "Anna trims energy share",
     signal: "Grid -18%",
     workload: "Eco Wave",
     accent: "#06b6d4",
@@ -185,8 +185,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-10",
     callSign: "Universal Robots UR10e",
     fleetClass: "UCS Drop-in Arm",
-    mission: "Fremdroboter-Mapping",
-    persona: "Jonas onboardet neue Flotten",
+    mission: "Foreign Robot Mapping",
+    persona: "Jonas onboards new fleets",
     signal: "Schema 97%",
     workload: "Foreign Top",
     accent: "#d946ef",
@@ -200,8 +200,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-11",
     callSign: "Staubli TX2-60",
     fleetClass: "Fast Pick Arm",
-    mission: "Innenstadt-Speed-Picks",
-    persona: "Anna testet Mini-Hub-OpEx",
+    mission: "Inner-City Speed Picks",
+    persona: "Anna tests mini-hub OpEx",
     signal: "Cycle 0.8s",
     workload: "Fast Light",
     accent: "#84cc16",
@@ -215,8 +215,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-12",
     callSign: "Kawasaki duAro2",
     fleetClass: "Dual-Arm Cobot",
-    mission: "Staubige Wareneingaenge",
-    persona: "Marie bewertet Outdoor-Risiko",
+    mission: "Dusty Inbound Docks",
+    persona: "Marie rates outdoor risk",
     signal: "Seal OK",
     workload: "Rough Dock",
     accent: "#d97706",
@@ -231,7 +231,7 @@ const robotCards: RobotCard[] = [
     callSign: "Epson C8XL",
     fleetClass: "6-Axis Pick Arm",
     mission: "Lights-out Fulfillment",
-    persona: "Jonas verkauft 24/7-Kapazitaet",
+    persona: "Jonas sells 24/7 capacity",
     signal: "Night 99%",
     workload: "No-Light",
     accent: "#0284c7",
@@ -245,8 +245,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-14",
     callSign: "Denso Cobotta Pro",
     fleetClass: "Precision Cobot",
-    mission: "Beauty & Glaswaren",
-    persona: "Anna reduziert Bruchkosten",
+    mission: "Beauty & Glassware",
+    persona: "Anna cuts breakage cost",
     signal: "Grip Soft",
     workload: "Fragile",
     accent: "#db2777",
@@ -261,7 +261,7 @@ const robotCards: RobotCard[] = [
     callSign: "Nachi MZ07",
     fleetClass: "Compact 6-Axis Arm",
     mission: "Investor Pitch Mode",
-    persona: "Marie sieht Cashflow-Sprint",
+    persona: "Marie sees the cashflow sprint",
     signal: "APR Sim",
     workload: "Showcase",
     accent: "#dc2626",
@@ -275,8 +275,8 @@ const robotCards: RobotCard[] = [
     assetId: "RaaS-ASSET-16",
     callSign: "Mitsubishi MELFA RV-8CRL",
     fleetClass: "Industrial Cobot",
-    mission: "Drei Kunden, eine Zelle",
-    persona: "UNIFI trennt Cashflows",
+    mission: "Three Customers, One Cell",
+    persona: "UNIFI splits cashflows",
     signal: "Split Live",
     workload: "Pool",
     accent: "#7c3aed",
@@ -303,13 +303,13 @@ function formatCompactEur(value: number) {
 
 function formatRobotAge(months: number) {
   if (months < 12) {
-    return `${months} Mon.`;
+    return `${months} mo`;
   }
 
   const years = Math.floor(months / 12);
   const remainingMonths = months % 12;
 
-  return remainingMonths === 0 ? `${years} J.` : `${years} J. ${remainingMonths} M.`;
+  return remainingMonths === 0 ? `${years} y` : `${years} y ${remainingMonths} mo`;
 }
 
 function saveStoredTheme(theme: RobotColorTheme) {
@@ -334,17 +334,20 @@ export default function RobotsPage() {
             <div>
               <p className="micro-label text-slate-500">Robot Fleet</p>
               <h1 className="mt-1 text-2xl font-semibold tracking-[-0.05em] text-[#172033]">
-                Roboter auswählen
+                Select a Robot
               </h1>
             </div>
           </div>
 
-          <nav className="flex flex-wrap items-center gap-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600" aria-label="Hauptnavigation">
+          <nav className="flex flex-wrap items-center gap-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600" aria-label="Main navigation">
             <Link className="border border-blue-500/20 bg-white/45 px-3 py-2 transition hover:text-blue-600" href="/">
               Live Demo
             </Link>
             <Link className="border border-blue-500/30 bg-blue-600 px-3 py-2 text-white transition hover:bg-blue-700" href="/robots">
-              Roboter
+              Robots
+            </Link>
+            <Link className="border border-blue-500/30 bg-white/45 px-3 py-2 text-blue-700 transition hover:bg-blue-50" href="/deal-desk">
+              Deal Desk
             </Link>
           </nav>
         </header>
@@ -352,10 +355,10 @@ export default function RobotsPage() {
         <section className="relative z-10 p-4 lg:p-6">
           <div className="mb-5">
             <div className="max-w-3xl">
-              <p className="micro-label text-blue-600">Live View Starten</p>
+              <p className="micro-label text-blue-600">Start Live View</p>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Waehle einen Roboter aus der UNIFI-Flotte. Jeder Klick oeffnet die Live-Demo mit
-                passendem 3D-Theme, Asset-Story und Pay-per-Pick-Perspektive.
+                Pick a robot from the UNIFI fleet. Each tap opens the live demo with the matching
+                3D theme, asset story, and pay-per-pick angle.
               </p>
             </div>
           </div>
@@ -385,7 +388,7 @@ export default function RobotsPage() {
               </div>
               <div className="border border-blue-500/15 bg-white/70 px-6 py-5 shadow-[0_18px_45px_rgba(23,32,51,0.08)]">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                  Fleet Value
+                  Residual Fleet Value
                 </p>
                 <div className="mt-2 font-mono text-4xl font-semibold tracking-[-0.08em] text-[#172033]">
                   {formatCompactEur(totalAssetValueEur)}
@@ -481,26 +484,26 @@ export default function RobotsPage() {
                         </div>
                       </div>
                       <div className="border border-blue-500/15 bg-white/55 px-2 py-2 text-slate-500">
-                        Alter
+                        Age
                         <div className="mt-1 font-mono text-xs normal-case tracking-[-0.02em] text-[#172033]">
                           {formatRobotAge(robot.ageMonths)}
                         </div>
                       </div>
                       <div className="border border-blue-500/15 bg-white/55 px-2 py-2 text-slate-500">
-                        Umsatz
+                        Revenue
                         <div className="mt-1 font-mono text-xs normal-case tracking-[-0.02em] text-[#172033]">
                           {formatCompactEur(robot.generatedRevenueEur)}
                         </div>
                       </div>
                       <div className="border border-blue-500/15 bg-white/55 px-2 py-2 text-slate-500">
-                        Wert
+                        Residual Value
                         <div className="mt-1 font-mono text-xs normal-case tracking-[-0.02em] text-[#172033]">
                           {formatCompactEur(robot.assetValueEur)}
                         </div>
                       </div>
                     </div>
                     <div className="mt-4 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.18em] text-blue-600">
-                      <span className="transition group-hover:translate-x-1">Live oeffnen</span>
+                      <span className="transition group-hover:translate-x-1">Open live</span>
                       <span className="font-mono text-slate-400">/{robot.theme}</span>
                     </div>
                   </div>

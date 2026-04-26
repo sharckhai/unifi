@@ -60,7 +60,7 @@ const kpis = [
   { label: "Wear Factor Live", color: "#2563eb", dataKey: "wear", icon: Activity },
   { label: "Cost per Pick", color: "#0ea5e9", dataKey: "wearCost", icon: CircleDollarSign },
   { label: "Daily Revenue Projection", color: "#6366f1", dataKey: "dailyRevenue", icon: Gauge },
-  { label: "Robot Value", color: "#64748b", dataKey: "robotValue", icon: CheckCircle2 },
+  { label: "Residual Robot Value", color: "#64748b", dataKey: "robotValue", icon: CheckCircle2 },
 ];
 
 const SELECTED_THEME_STORAGE_KEY = "unifi:selectedRobotTheme";
