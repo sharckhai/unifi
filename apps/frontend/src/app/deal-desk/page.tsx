@@ -192,6 +192,12 @@ export default function DealDeskPage() {
 
           <div className="flex items-center gap-2">
             <Link
+              href="/"
+              className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50"
+            >
+              Live Demo
+            </Link>
+            <Link
               href="/robots"
               className="inline-flex items-center gap-2 border border-blue-500/30 bg-white/45 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700 transition hover:bg-blue-50"
             >

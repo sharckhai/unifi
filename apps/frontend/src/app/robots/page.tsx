@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { RobotThumbnail } from "@/components/robot-scene/RobotThumbnail";
-import { ROBOT_COLOR_THEMES } from "@/components/robot-scene/sceneSetup";
 import type { JointPose, RobotColorTheme } from "@/components/robot-scene/types";
 
 const SELECTED_THEME_STORAGE_KEY = "unifi:selectedRobotTheme";
@@ -23,6 +22,7 @@ type RobotCard = {
   ageMonths: number;
   generatedRevenueEur: number;
   assetValueEur: number;
+  customer: string;
 };
 
 const thumbnailPoses: JointPose[] = [
@@ -57,8 +57,9 @@ const robotCards: RobotCard[] = [
     accent: "#2563eb",
     status: "running",
     ageMonths: 18,
-    generatedRevenueEur: 248000,
-    assetValueEur: 118000,
+    generatedRevenueEur: 55000,
+    assetValueEur: 23000,
+    customer: "Hanseatic Retail GmbH",
   },
   {
     theme: "graphite",
@@ -72,8 +73,9 @@ const robotCards: RobotCard[] = [
     accent: "#475569",
     status: "idle",
     ageMonths: 31,
-    generatedRevenueEur: 174000,
-    assetValueEur: 92000,
+    generatedRevenueEur: 45000,
+    assetValueEur: 17000,
+    customer: "NordWaren Logistik",
   },
   {
     theme: "ice",
@@ -88,7 +90,8 @@ const robotCards: RobotCard[] = [
     status: "running",
     ageMonths: 14,
     generatedRevenueEur: 216000,
-    assetValueEur: 126000,
+    assetValueEur: 95000,
+    customer: "PharmaKern AG",
   },
   {
     theme: "copper",
@@ -103,7 +106,8 @@ const robotCards: RobotCard[] = [
     status: "running",
     ageMonths: 26,
     generatedRevenueEur: 302000,
-    assetValueEur: 108000,
+    assetValueEur: 115000,
+    customer: "Werra Heavy Logistics",
   },
   {
     theme: "cobalt",
@@ -118,7 +122,8 @@ const robotCards: RobotCard[] = [
     status: "idle",
     ageMonths: 22,
     generatedRevenueEur: 189000,
-    assetValueEur: 101000,
+    assetValueEur: 19000,
+    customer: "Returium Hub GmbH",
   },
   {
     theme: "mint",
@@ -133,7 +138,8 @@ const robotCards: RobotCard[] = [
     status: "running",
     ageMonths: 9,
     generatedRevenueEur: 132000,
-    assetValueEur: 137000,
+    assetValueEur: 28000,
+    customer: "Lumière Beauty Co.",
   },
   {
     theme: "ember",
@@ -148,7 +154,8 @@ const robotCards: RobotCard[] = [
     status: "running",
     ageMonths: 17,
     generatedRevenueEur: 276000,
-    assetValueEur: 121000,
+    assetValueEur: 24000,
+    customer: "PeakCart Commerce",
   },
   {
     theme: "violet",
@@ -163,7 +170,8 @@ const robotCards: RobotCard[] = [
     status: "idle",
     ageMonths: 35,
     generatedRevenueEur: 158000,
-    assetValueEur: 86000,
+    assetValueEur: 15000,
+    customer: "Veridia Quality GmbH",
   },
   {
     theme: "aurora",
@@ -178,7 +186,8 @@ const robotCards: RobotCard[] = [
     status: "running",
     ageMonths: 12,
     generatedRevenueEur: 204000,
-    assetValueEur: 132000,
+    assetValueEur: 26000,
+    customer: "SolNetz Energie AG",
   },
   {
     theme: "nebula",
@@ -193,7 +202,8 @@ const robotCards: RobotCard[] = [
     status: "running",
     ageMonths: 6,
     generatedRevenueEur: 98000,
-    assetValueEur: 146000,
+    assetValueEur: 30000,
+    customer: "Astrolab Robotics",
   },
   {
     theme: "wasabi",
@@ -208,7 +218,8 @@ const robotCards: RobotCard[] = [
     status: "running",
     ageMonths: 11,
     generatedRevenueEur: 185000,
-    assetValueEur: 134000,
+    assetValueEur: 27000,
+    customer: "Citymover Express",
   },
   {
     theme: "sandstorm",
@@ -223,7 +234,8 @@ const robotCards: RobotCard[] = [
     status: "idle",
     ageMonths: 29,
     generatedRevenueEur: 167000,
-    assetValueEur: 97000,
+    assetValueEur: 18000,
+    customer: "Hafenfracht Nord",
   },
   {
     theme: "abyss",
@@ -238,7 +250,8 @@ const robotCards: RobotCard[] = [
     status: "running",
     ageMonths: 20,
     generatedRevenueEur: 241000,
-    assetValueEur: 116000,
+    assetValueEur: 22000,
+    customer: "Mondtor Fulfillment",
   },
   {
     theme: "orchid",
@@ -253,7 +266,8 @@ const robotCards: RobotCard[] = [
     status: "running",
     ageMonths: 15,
     generatedRevenueEur: 193000,
-    assetValueEur: 128000,
+    assetValueEur: 25500,
+    customer: "Crystallin Cosmetics",
   },
   {
     theme: "racing",
@@ -268,7 +282,8 @@ const robotCards: RobotCard[] = [
     status: "running",
     ageMonths: 8,
     generatedRevenueEur: 121000,
-    assetValueEur: 141000,
+    assetValueEur: 29000,
+    customer: "Capitania Demo Fund",
   },
   {
     theme: "prism",
@@ -283,7 +298,8 @@ const robotCards: RobotCard[] = [
     status: "idle",
     ageMonths: 24,
     generatedRevenueEur: 229000,
-    assetValueEur: 112000,
+    assetValueEur: 21000,
+    customer: "TriBox Multi-Tenant",
   },
 ];
 
@@ -320,6 +336,15 @@ function saveStoredTheme(theme: RobotColorTheme) {
   }
 }
 
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="hidden w-32 shrink-0 text-right sm:block">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-1 font-mono text-lg font-semibold tracking-[-0.03em] text-[#172033]">{value}</p>
+    </div>
+  );
+}
+
 export default function RobotsPage() {
   return (
     <div className="min-h-screen p-3 font-sans text-[#172033] lg:p-5">
@@ -332,7 +357,7 @@ export default function RobotsPage() {
             </div>
             <div className="hidden h-8 w-px bg-blue-500/20 sm:block" />
             <div>
-              <h1 className="text-2xl font-semibold tracking-[-0.05em] text-[#172033]">
+              <h1 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-500">
                 Track Your Fleet
               </h1>
             </div>
@@ -378,7 +403,7 @@ export default function RobotsPage() {
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                   Total Revenue
                 </p>
-                <div className="mt-2 font-mono text-4xl font-semibold tracking-[-0.08em] text-[#172033]">
+                <div className="mt-2 font-mono text-4xl font-semibold tracking-[-0.08em] text-emerald-700">
                   {formatCompactEur(totalGeneratedRevenueEur)}
                 </div>
                 <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
@@ -398,114 +423,63 @@ export default function RobotsPage() {
               </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="flex flex-col gap-2">
             {robotCards.map((robot, index) => {
-              const theme =
-                ROBOT_COLOR_THEMES.find((item) => item.id === robot.theme) ??
-                ROBOT_COLOR_THEMES[0];
+              const thumbnailPose = thumbnailPoses[index % thumbnailPoses.length];
               const isRunning = robot.status === "running";
               const statusLabel = isRunning ? "Running" : "Idle";
-              const thumbnailPose = thumbnailPoses[index % thumbnailPoses.length];
 
               return (
                 <Link
                   key={robot.assetId}
                   href={`/?theme=${robot.theme}#robot`}
                   onClick={() => saveStoredTheme(robot.theme)}
-                  className="panel-glass group overflow-hidden text-left transition hover:-translate-y-0.5 hover:border-blue-500/40 hover:shadow-[0_22px_55px_rgba(23,32,51,0.12)]"
+                  className="panel-glass group flex items-center gap-6 overflow-hidden p-4 transition hover:border-blue-500/40 hover:shadow-[0_18px_45px_rgba(23,32,51,0.10)]"
                 >
                   <div
-                    className="relative overflow-hidden"
+                    className="relative h-32 w-44 shrink-0 overflow-hidden border border-blue-500/15"
                     style={{
-                      background: `radial-gradient(circle at 20% 18%, ${robot.accent}33, transparent 9rem), linear-gradient(135deg, rgba(255,255,255,0.8), ${robot.accent}12)`,
+                      background: `radial-gradient(circle at 20% 18%, ${robot.accent}33, transparent 7rem), linear-gradient(135deg, rgba(255,255,255,0.8), ${robot.accent}12)`,
                     }}
                   >
-                    <div className="absolute left-3 top-3 z-10 border border-white/65 bg-white/70 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-slate-600 shadow-sm backdrop-blur">
-                      {robot.fleetClass}
-                    </div>
                     <RobotThumbnail
                       theme={robot.theme}
                       pose={thumbnailPose}
-                      className="h-60 w-full sm:h-64 xl:h-56"
+                      className="h-full w-full"
                     />
                   </div>
-                  <div className="border-t border-blue-500/15 p-5">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <span className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                        {robot.assetId}
-                      </span>
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="truncate text-base font-semibold tracking-[-0.04em] text-[#172033]">
+                      {robot.callSign}
+                    </div>
+                    <span
+                      className={`inline-flex shrink-0 items-center gap-2 border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${
+                        isRunning
+                          ? "border-emerald-500/25 bg-emerald-50 text-emerald-700"
+                          : "border-slate-300/60 bg-white/60 text-slate-500"
+                      }`}
+                    >
                       <span
-                        className={`inline-flex items-center gap-2 border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${
+                        className={`h-1.5 w-1.5 rounded-full ${
                           isRunning
-                            ? "border-emerald-500/25 bg-emerald-50 text-emerald-700"
-                            : "border-slate-300/60 bg-white/60 text-slate-500"
+                            ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.85)]"
+                            : "bg-slate-400"
                         }`}
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            isRunning
-                              ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.85)]"
-                              : "bg-slate-400"
-                          }`}
-                        />
-                        {statusLabel}
-                      </span>
-                    </div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-xl font-semibold tracking-[-0.04em] text-[#172033]">
-                          {robot.callSign}
-                        </div>
-                        <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                          Theme {theme.label}
-                        </p>
-                      </div>
-                      <div
-                        className="h-9 w-1.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: robot.accent }}
                       />
-                    </div>
-                    <p className="mt-3 text-sm font-medium text-slate-700">{robot.mission}</p>
-                    <p className="mt-1 min-h-[2.25rem] text-xs leading-5 text-slate-500">
-                      {robot.persona}
-                    </p>
-                    <div className="mt-4 grid grid-cols-2 gap-2 text-[10px] font-bold uppercase tracking-[0.14em]">
-                      <div className="border border-blue-500/15 bg-white/55 px-2 py-2 text-slate-500">
-                        Signal
-                        <div className="mt-1 font-mono text-xs normal-case tracking-[-0.02em] text-[#172033]">
-                          {robot.signal}
-                        </div>
-                      </div>
-                      <div className="border border-blue-500/15 bg-white/55 px-2 py-2 text-slate-500">
-                        Workload
-                        <div className="mt-1 font-mono text-xs normal-case tracking-[-0.02em] text-[#172033]">
-                          {robot.workload}
-                        </div>
-                      </div>
-                      <div className="border border-blue-500/15 bg-white/55 px-2 py-2 text-slate-500">
-                        Age
-                        <div className="mt-1 font-mono text-xs normal-case tracking-[-0.02em] text-[#172033]">
-                          {formatRobotAge(robot.ageMonths)}
-                        </div>
-                      </div>
-                      <div className="border border-blue-500/15 bg-white/55 px-2 py-2 text-slate-500">
-                        Revenue
-                        <div className="mt-1 font-mono text-xs normal-case tracking-[-0.02em] text-[#172033]">
-                          {formatCompactEur(robot.generatedRevenueEur)}
-                        </div>
-                      </div>
-                      <div className="border border-blue-500/15 bg-white/55 px-2 py-2 text-slate-500">
-                        Residual Value
-                        <div className="mt-1 font-mono text-xs normal-case tracking-[-0.02em] text-[#172033]">
-                          {formatCompactEur(robot.assetValueEur)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.18em] text-blue-600">
-                      <span className="transition group-hover:translate-x-1">Open live</span>
-                      <span className="font-mono text-slate-400">/{robot.theme}</span>
-                    </div>
+                      {statusLabel}
+                    </span>
                   </div>
+                  <div className="hidden w-48 shrink-0 sm:block">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                      Customer
+                    </p>
+                    <p className="mt-1 truncate text-sm font-medium tracking-[-0.02em] text-[#172033]">
+                      {robot.customer}
+                    </p>
+                  </div>
+                  <Stat label="Age" value={formatRobotAge(robot.ageMonths)} />
+                  <Stat label="Revenue" value={formatCompactEur(robot.generatedRevenueEur)} />
+                  <Stat label="Residual Value" value={formatCompactEur(robot.assetValueEur)} />
                 </Link>
               );
             })}
