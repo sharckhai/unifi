@@ -544,7 +544,7 @@ export default function Home() {
                     {formatCurrency(animatedCostPerPick)}
                   </div>
                   <div className="micro-label mt-1 text-slate-500">
-                    All-in per Pick - {lastCubeLabel}
+                    All-in per Pick
                   </div>
                 </div>
                 <div className="min-w-0">
@@ -552,8 +552,7 @@ export default function Home() {
                     {formatCurrency(animatedTotalRevenue)}
                   </div>
                   <div className="micro-label mt-1 text-slate-500">
-                    Total Revenue - {liveTelemetryData.length}{" "}
-                    {liveTelemetryData.length === 1 ? "Pick" : "Picks"}
+                    Total Revenue
                   </div>
                 </div>
               </div>

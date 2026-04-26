@@ -6,18 +6,20 @@ import { HOME_POSE } from "./constants";
 import { applyPoseToRig } from "./motion";
 import { applyGripperToRig, buildRobotRig } from "./rig";
 import { ROBOT_COLOR_THEMES } from "./sceneSetup";
-import type { RobotColorTheme } from "./types";
+import type { JointPose, RobotColorTheme } from "./types";
 
 type RobotThumbnailProps = {
   theme: RobotColorTheme;
   className?: string;
   interactive?: boolean;
+  pose?: JointPose;
 };
 
 export function RobotThumbnail({
   theme,
   className = "h-56 w-full",
   interactive = false,
+  pose = HOME_POSE,
 }: RobotThumbnailProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -38,13 +40,14 @@ export function RobotThumbnail({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(
-      34,
+      40,
       container.clientWidth / container.clientHeight,
       0.1,
       100,
     );
-    camera.position.set(3.2, 2.55, 4.45);
-    camera.lookAt(0.08, 1.34, 0);
+    const cameraDirection = new THREE.Vector3(3.7, 2.7, 5.2)
+      .sub(new THREE.Vector3(0.08, 1.3, 0))
+      .normalize();
 
     const palette =
       ROBOT_COLOR_THEMES.find((item) => item.id === theme) ?? ROBOT_COLOR_THEMES[0];
@@ -73,12 +76,30 @@ export function RobotThumbnail({
       joint: jointMaterial,
       dark: darkMaterial,
     });
-    robot.position.set(0, -0.35, 0);
+    robot.position.set(0, -0.48, 0);
     robot.rotation.y = -0.34;
     scene.add(robot);
 
-    applyPoseToRig(rig, HOME_POSE);
+    applyPoseToRig(rig, pose);
     applyGripperToRig(gripper, 1);
+
+    const robotBounds = new THREE.Box3().setFromObject(robot);
+    const robotCenter = robotBounds.getCenter(new THREE.Vector3());
+    const robotSize = robotBounds.getSize(new THREE.Vector3());
+
+    const fitCameraToRobot = () => {
+      const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+      const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * camera.aspect);
+      const distanceForHeight = robotSize.y / 2 / Math.tan(verticalFov / 2);
+      const distanceForWidth = Math.max(robotSize.x, robotSize.z) / 2 / Math.tan(horizontalFov / 2);
+      const distance = Math.max(distanceForHeight, distanceForWidth) * 1.35;
+
+      camera.position.copy(robotCenter).addScaledVector(cameraDirection, distance);
+      camera.lookAt(robotCenter);
+      camera.updateProjectionMatrix();
+    };
+
+    fitCameraToRobot();
 
     const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
     keyLight.position.set(2.8, 5.4, 3.4);
@@ -90,7 +111,7 @@ export function RobotThumbnail({
 
       renderer.setSize(width, height);
       camera.aspect = width / height;
-      camera.updateProjectionMatrix();
+      fitCameraToRobot();
       renderer.render(scene, camera);
     });
 
@@ -129,7 +150,7 @@ export function RobotThumbnail({
         container.removeChild(renderer.domElement);
       }
     };
-  }, [interactive, theme]);
+  }, [interactive, pose, theme]);
 
   return (
     <div
