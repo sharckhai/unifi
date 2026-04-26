@@ -7,3 +7,4 @@ artifacts/
 *.parquet
 *.lgbm
 uv.lock
+.env
