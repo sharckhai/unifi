@@ -68,6 +68,17 @@ body::after {
   background-size: 42px 42px;
 }
 
+.robot-scene-shell:fullscreen {
+  background:
+    radial-gradient(circle at 20% 18%, rgba(31, 85, 255, 0.08), transparent 24rem),
+    linear-gradient(135deg, rgba(31, 85, 255, 0.06) 0 1px, transparent 1px 28px),
+    #f7f5ef !important;
+}
+
+.robot-scene-shell::backdrop {
+  background: #f7f5ef;
+}
+
 .technical-blueprint {
   position: relative;
 }
