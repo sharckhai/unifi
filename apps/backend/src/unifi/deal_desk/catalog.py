@@ -19,22 +19,55 @@ from unifi.ucs.schema import UcsDatasheet
 MONTHLY_LEASING_FACTOR: float = 0.0215
 _DEFAULT_OPERATING_PROFILE = OperatingProfile()
 
-# Base fee per robot per month — covers ~80 % of the robot's purchase price
-# over a 48-month contract plus UNIFI's platform margin. Real-world RaaS
-# always combines a time-based component (covers CapEx + service margin)
-# with a usage-based component (covers OpEx + variable margin). Without it,
-# UNIFI implicitly subsidises low-utilisation customers — the robot sits on
-# UNIFI's balance sheet but is paid for only via the per-pick wear charge.
-_MONTHLY_BASE_FEE_EUR: dict[str, float] = {
-    "UR5": 600.0,
-    "SCARA": 400.0,
+# Base fee per robot per month — utilization-scaled.
+#
+# At zero usage UNIFI carries the full underuse risk: the robot sits on
+# UNIFI's balance sheet, depreciates by time alone, and incurs platform
+# overhead — so the base fee is at its maximum.
+#
+# At full nominal utilization the usage-based per-pick wear charge
+# already recovers a substantial share of CapEx by itself, so the base
+# fee tapers down to a floor that covers only the time-independent
+# pieces (insurance, platform overhead, residual time-decay).
+#
+# Linear taper between max and floor over the [0, 100 %] utilization
+# band, capped at the floor for over-nominal usage. Calibrated so that
+# both low-volume (Bela) and high-volume (Anna) scenarios land at
+# roughly leasing +10 %.
+_MONTHLY_BASE_FEE_MAX_EUR: dict[str, float] = {
+    "UR5": 700.0,
+    "SCARA": 450.0,
+}
+_MONTHLY_BASE_FEE_FLOOR_EUR: dict[str, float] = {
+    "UR5": 80.0,
+    "SCARA": 60.0,
 }
 
 
-def base_fee_eur_per_robot_per_month(robot_name: str) -> float:
-    if robot_name not in _MONTHLY_BASE_FEE_EUR:
+def _nominal_picks_per_month(robot_name: str) -> float:
+    ds = _CATALOG[robot_name]
+    return _DEFAULT_OPERATING_PROFILE.resolve_picks_per_year(ds) / 12.0
+
+
+def base_fee_eur_per_robot_per_month(
+    robot_name: str,
+    picks_per_robot_per_month: float = 0.0,
+) -> float:
+    """Utilization-scaled monthly base fee for one robot.
+
+    Returns the maximum at zero usage and tapers linearly to the floor
+    at nominal capacity. Past nominal capacity the floor holds — there
+    is no negative base fee.
+    """
+    if robot_name not in _MONTHLY_BASE_FEE_MAX_EUR:
         raise KeyError(robot_name)
-    return _MONTHLY_BASE_FEE_EUR[robot_name]
+    max_fee = _MONTHLY_BASE_FEE_MAX_EUR[robot_name]
+    floor_fee = _MONTHLY_BASE_FEE_FLOOR_EUR[robot_name]
+    nominal = _nominal_picks_per_month(robot_name)
+    if nominal <= 0:
+        return max_fee
+    utilization = min(max(picks_per_robot_per_month / nominal, 0.0), 1.0)
+    return floor_fee + (max_fee - floor_fee) * (1.0 - utilization)
 
 
 UR5_DATASHEET = UcsDatasheet(

@@ -106,7 +106,10 @@ def test_compare_leasing_and_unifi_basic_shape():
     assert result.leasing.cash_flow_profile == "fixed"
     assert result.unifi.cash_flow_profile == "volume_coupled"
     expected_pay_per_pick_monthly = 2_000_000 * 0.50
-    expected_base_fee_monthly = 10 * catalog.base_fee_eur_per_robot_per_month("UR5")
+    picks_per_robot = 2_000_000 / 10
+    expected_base_fee_monthly = 10 * catalog.base_fee_eur_per_robot_per_month(
+        "UR5", picks_per_robot_per_month=picks_per_robot
+    )
     assert result.unifi.pay_per_pick_monthly_eur == pytest.approx(
         expected_pay_per_pick_monthly
     )

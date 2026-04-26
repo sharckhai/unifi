@@ -332,9 +332,8 @@ export default function RobotsPage() {
             </div>
             <div className="hidden h-8 w-px bg-blue-500/20 sm:block" />
             <div>
-              <p className="micro-label text-slate-500">Robot Fleet</p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-[-0.05em] text-[#172033]">
-                Select a Robot
+              <h1 className="text-2xl font-semibold tracking-[-0.05em] text-[#172033]">
+                Track Your Fleet
               </h1>
             </div>
           </div>

@@ -227,7 +227,12 @@ def compare_leasing_and_unifi(
     )
     leasing_total = leasing_monthly * term_months
 
-    base_fee_per_robot = catalog.base_fee_eur_per_robot_per_month(robot_name)
+    picks_per_robot_per_month = (
+        expected_picks_per_month / fleet_size if fleet_size > 0 else 0.0
+    )
+    base_fee_per_robot = catalog.base_fee_eur_per_robot_per_month(
+        robot_name, picks_per_robot_per_month=picks_per_robot_per_month
+    )
     base_fee_monthly = base_fee_per_robot * fleet_size
     base_fee_total = base_fee_monthly * term_months
 
