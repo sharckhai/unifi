@@ -103,6 +103,7 @@ export type SceneActions = {
   resetCubes: () => void;
   setSpeedMultiplier: (speedMultiplier: number) => void;
   setCameraViewMode: (cameraViewMode: CameraViewMode) => void;
+  setBinLabelsVisible: (visible: boolean) => void;
   setCostParticlesEnabled: (enabled: boolean) => void;
   setSoundEnabled: (enabled: boolean) => void;
   showPickCostEffect: (payload: PickCostEffectPayload) => void;

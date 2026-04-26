@@ -67,6 +67,7 @@ type RobotSceneOptions = {
   robotTheme?: RobotColorTheme;
   speedMultiplier?: number;
   cameraViewMode?: CameraViewMode;
+  binLabelsVisible?: boolean;
   costParticlesEnabled?: boolean;
 };
 
@@ -238,7 +239,21 @@ export async function startRobotScene(
   const armLogoCameraPosition = new THREE.Vector3();
   const armLogoCameraTarget = new THREE.Vector3();
   const robotHeroFocus = new THREE.Vector3();
+  const robotHeroFocusOffset = new THREE.Vector3();
   const robotHeroCameraPosition = new THREE.Vector3();
+
+  const setRobotHeroFocus = (
+    target: THREE.Object3D,
+    localOffset: THREE.Vector3,
+    shakeAmount = 0,
+  ) => {
+    robotHeroFocusOffset.copy(localOffset);
+    target.localToWorld(robotHeroFocus.copy(robotHeroFocusOffset));
+    robotHeroFocus.x += Math.sin(elapsedTime * 18.1) * shakeAmount;
+    robotHeroFocus.y += Math.cos(elapsedTime * 14.7) * shakeAmount * 0.55;
+  };
+
+  let elapsedTime = 0;
 
   const updateCinematicCamera = (elapsedSeconds: number) => {
     const sweep = elapsedSeconds * 0.22;
@@ -257,12 +272,14 @@ export async function startRobotScene(
   };
 
   const updateRobotHeroCamera = (elapsedSeconds: number) => {
-    const sequenceTime = elapsedSeconds % 8.4;
-    const beat = Math.floor(elapsedSeconds * 2.35);
-    const beatKick = Math.sin(elapsedSeconds * 15.8) * 0.035;
+    const heroTime = elapsedSeconds * 0.74;
+    elapsedTime = heroTime;
+    const sequenceTime = heroTime % 8.4;
+    const beat = Math.floor(heroTime * 2.35);
+    const beatKick = Math.sin(heroTime * 15.8) * 0.035;
     const cutShake = Math.sin(beat * 12.9898) * 0.045;
 
-    targetCameraFov = ROBOT_HERO_CAMERA_FOV + Math.sin(elapsedSeconds * 7.2) * 2.6;
+    targetCameraFov = ROBOT_HERO_CAMERA_FOV + Math.sin(heroTime * 7.2) * 2.6;
 
     if (sequenceTime < 1.05) {
       const progress = sequenceTime / 1.05;
@@ -271,7 +288,7 @@ export async function startRobotScene(
         0.46 + progress * 0.28 + beatKick,
         THREE.MathUtils.lerp(3.35, 1.05, progress),
       );
-      robotHeroFocus.set(-0.06, 0.58 + progress * 0.22, 0.18);
+      setRobotHeroFocus(robot, new THREE.Vector3(0, 1.42, 0.1), 0.018);
       targetCameraRoll = -0.16 + progress * 0.08 + cutShake;
     } else if (sequenceTime < 2.05) {
       const progress = (sequenceTime - 1.05) / 1;
@@ -280,7 +297,7 @@ export async function startRobotScene(
         0.9 + Math.sin(progress * Math.PI) * 0.22,
         THREE.MathUtils.lerp(1.18, -0.55, progress),
       );
-      robotHeroFocus.set(0.02, 0.78, 0.08);
+      setRobotHeroFocus(rig.elbowPitch, new THREE.Vector3(0, ROBOT_FOREARM_LENGTH * 0.52, 0.12), 0.012);
       targetCameraRoll = 0.18 - progress * 0.26 + cutShake;
     } else if (sequenceTime < 3.1) {
       const progress = (sequenceTime - 2.05) / 1.05;
@@ -289,7 +306,7 @@ export async function startRobotScene(
         THREE.MathUtils.lerp(1.28, 0.76, progress),
         THREE.MathUtils.lerp(-2.35, -1.38, progress),
       );
-      robotHeroFocus.set(-0.06, 0.96 - progress * 0.28, 0.02);
+      setRobotHeroFocus(rig.wrist1Pitch, new THREE.Vector3(0, 0.24, 0.02), 0.014);
       targetCameraRoll = -0.24 + Math.sin(progress * Math.PI) * 0.32 + cutShake;
     } else if (sequenceTime < 4.25) {
       const progress = (sequenceTime - 3.1) / 1.15;
@@ -299,7 +316,7 @@ export async function startRobotScene(
         0.42 + Math.sin(progress * Math.PI) * 0.28,
         Math.sin(sweep) * 2.25,
       );
-      robotHeroFocus.set(0.0, 0.5 + progress * 0.22, 0.05);
+      setRobotHeroFocus(rig.baseYaw, new THREE.Vector3(0, 0.32 + progress * 0.22, 0.18), 0.01);
       targetCameraRoll = 0.12 + Math.sin(progress * Math.PI * 2) * 0.13 + cutShake;
     } else if (sequenceTime < 5.4) {
       const progress = (sequenceTime - 4.25) / 1.15;
@@ -308,7 +325,7 @@ export async function startRobotScene(
         THREE.MathUtils.lerp(0.66, 1.12, progress),
         THREE.MathUtils.lerp(-1.9, -3.05, progress),
       );
-      robotHeroFocus.set(-0.12, 0.72 + Math.sin(progress * Math.PI) * 0.28, 0.12);
+      setRobotHeroFocus(rig.shoulderPitch, new THREE.Vector3(0, 0.42, 0.08), 0.012);
       targetCameraRoll = -0.08 - progress * 0.18 + cutShake;
     } else if (sequenceTime < 6.55) {
       const progress = (sequenceTime - 5.4) / 1.15;
@@ -317,7 +334,7 @@ export async function startRobotScene(
         1.16 + Math.sin(progress * Math.PI) * 0.12,
         THREE.MathUtils.lerp(2.42, 1.18, progress),
       );
-      robotHeroFocus.set(0.02, 0.78, 0.02);
+      setRobotHeroFocus(pinchAnchor, new THREE.Vector3(0, 0.08, 0), 0.016);
       targetCameraRoll = 0.24 - progress * 0.36 + cutShake;
     } else {
       const progress = (sequenceTime - 6.55) / 1.85;
@@ -328,10 +345,10 @@ export async function startRobotScene(
         0.78 + Math.sin(progress * Math.PI * 2) * 0.18,
         Math.sin(sweep) * radius,
       );
-      robotHeroFocus.set(
-        Math.sin(elapsedSeconds * 1.8) * 0.12,
-        0.68 + Math.cos(elapsedSeconds * 1.5) * 0.18,
-        0.08,
+      setRobotHeroFocus(
+        robot,
+        new THREE.Vector3(0, 1.06 + Math.cos(heroTime * 1.5) * 0.22, 0.08),
+        0.014,
       );
       targetCameraRoll = Math.sin(progress * Math.PI * 3) * 0.18 + cutShake;
     }
@@ -454,8 +471,18 @@ export async function startRobotScene(
     }
   };
 
+  let binLabelsVisible = options.binLabelsVisible ?? true;
+  const binLabelSprites: THREE.Object3D[] = [];
+
   SORTING_BINS.forEach((bin) => {
-    sceneRoot.add(createSortingSector(bin));
+    const sector = createSortingSector(bin);
+    sector.traverse((object) => {
+      if (object.userData.isSortingBinLabel) {
+        object.visible = binLabelsVisible;
+        binLabelSprites.push(object);
+      }
+    });
+    sceneRoot.add(sector);
     addBinColliders(world, RAPIER, bin);
   });
 
@@ -757,6 +784,12 @@ export async function startRobotScene(
         speedMultiplier = nextSpeedMultiplier;
       },
       setCameraViewMode,
+      setBinLabelsVisible: (visible) => {
+        binLabelsVisible = visible;
+        binLabelSprites.forEach((label) => {
+          label.visible = visible;
+        });
+      },
       setCostParticlesEnabled: (enabled) => {
         costParticlesEnabled = enabled;
       },

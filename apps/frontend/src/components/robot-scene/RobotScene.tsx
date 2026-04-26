@@ -42,6 +42,8 @@ export function RobotScene({
   const resetCubesRef = useRef<SceneActions["resetCubes"] | null>(null);
   const setSpeedMultiplierRef = useRef<SceneActions["setSpeedMultiplier"] | null>(null);
   const setCameraViewModeRef = useRef<SceneActions["setCameraViewMode"] | null>(null);
+  const setBinLabelsVisibleRef =
+    useRef<SceneActions["setBinLabelsVisible"] | null>(null);
   const setCostParticlesEnabledRef =
     useRef<SceneActions["setCostParticlesEnabled"] | null>(null);
   const setSoundEnabledRef = useRef<SceneActions["setSoundEnabled"] | null>(null);
@@ -49,12 +51,14 @@ export function RobotScene({
   const pendingPickCostEffectRef = useRef<PickCostEffectPayload | null>(null);
   const speedMultiplierRef = useRef(NORMAL_SCENE_SPEED);
   const cameraViewModeRef = useRef<CameraViewMode>("normal");
+  const binLabelsVisibleRef = useRef(true);
   const costParticlesEnabledRef = useRef(false);
   const soundEnabledRef = useRef(false);
   const [internalTime, setInternalTime] = useState(0);
   const [internalIsPlaying, setInternalIsPlaying] = useState(true);
   const [isFastMode, setIsFastMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [areBinLabelsVisible, setAreBinLabelsVisible] = useState(true);
   const [areCostParticlesEnabled, setAreCostParticlesEnabled] = useState(false);
   const [isSoundEnabled, setIsSoundEnabled] = useState(false);
   const [selectedCameraViewMode, setSelectedCameraViewMode] =
@@ -143,6 +147,7 @@ export function RobotScene({
     resetCubesRef.current = null;
     setSpeedMultiplierRef.current = null;
     setCameraViewModeRef.current = null;
+    setBinLabelsVisibleRef.current = null;
     setCostParticlesEnabledRef.current = null;
     setSoundEnabledRef.current = null;
     showPickCostEffectRef.current = null;
@@ -151,6 +156,7 @@ export function RobotScene({
       robotTheme: selectedRobotTheme,
       speedMultiplier: speedMultiplierRef.current,
       cameraViewMode: cameraViewModeRef.current,
+      binLabelsVisible: binLabelsVisibleRef.current,
       costParticlesEnabled: costParticlesEnabledRef.current,
     }).then((runtime) => {
       if (disposed) {
@@ -162,6 +168,7 @@ export function RobotScene({
       resetCubesRef.current = runtime.actions.resetCubes;
       setSpeedMultiplierRef.current = runtime.actions.setSpeedMultiplier;
       setCameraViewModeRef.current = runtime.actions.setCameraViewMode;
+      setBinLabelsVisibleRef.current = runtime.actions.setBinLabelsVisible;
       setCostParticlesEnabledRef.current = runtime.actions.setCostParticlesEnabled;
       setSoundEnabledRef.current = runtime.actions.setSoundEnabled;
       showPickCostEffectRef.current = runtime.actions.showPickCostEffect;
@@ -181,6 +188,7 @@ export function RobotScene({
       resetCubesRef.current = null;
       setSpeedMultiplierRef.current = null;
       setCameraViewModeRef.current = null;
+      setBinLabelsVisibleRef.current = null;
       setCostParticlesEnabledRef.current = null;
       setSoundEnabledRef.current = null;
       showPickCostEffectRef.current = null;
@@ -248,6 +256,16 @@ export function RobotScene({
       costParticlesEnabledRef.current = nextEnabled;
       setCostParticlesEnabledRef.current?.(nextEnabled);
       return nextEnabled;
+    });
+  };
+
+  const handleBinLabelsToggle = () => {
+    setAreBinLabelsVisible((current) => {
+      const nextVisible = !current;
+
+      binLabelsVisibleRef.current = nextVisible;
+      setBinLabelsVisibleRef.current?.(nextVisible);
+      return nextVisible;
     });
   };
 
@@ -385,6 +403,17 @@ export function RobotScene({
             }`}
         >
           {isFastMode ? "Normal Speed" : "5x Speed"}
+        </button>
+        <button
+          type="button"
+          onClick={handleBinLabelsToggle}
+          className={`border px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] shadow-[0_10px_30px_rgba(23,32,51,0.12)] backdrop-blur transition ${areBinLabelsVisible
+              ? "border-emerald-500/40 bg-emerald-50/90 text-emerald-700 hover:bg-emerald-100"
+              : "border-blue-500/30 bg-white/80 text-blue-700 hover:bg-blue-50"
+            }`}
+          aria-pressed={areBinLabelsVisible}
+        >
+          {areBinLabelsVisible ? "Tags On" : "Tags Off"}
         </button>
         <button
           type="button"
