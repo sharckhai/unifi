@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { RobotThumbnail } from "@/components/robot-scene/RobotThumbnail";
 import type { JointPose, RobotColorTheme } from "@/components/robot-scene/types";
+import { loadFleetRobots, type FleetRobotEntry } from "@/lib/fleetStorage";
 
 const SELECTED_THEME_STORAGE_KEY = "unifi:selectedRobotTheme";
 
@@ -303,12 +305,6 @@ const robotCards: RobotCard[] = [
   },
 ];
 
-const totalGeneratedRevenueEur = robotCards.reduce(
-  (sum, robot) => sum + robot.generatedRevenueEur,
-  0,
-);
-const totalAssetValueEur = robotCards.reduce((sum, robot) => sum + robot.assetValueEur, 0);
-
 function formatCompactEur(value: number) {
   if (value >= 1_000_000) {
     return `EUR ${(value / 1_000_000).toFixed(2)}M`;
@@ -345,7 +341,48 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+type RenderableRobot = RobotCard & { isNew: boolean };
+
 export default function RobotsPage() {
+  const [addedRobots, setAddedRobots] = useState<FleetRobotEntry[]>([]);
+
+  useEffect(() => {
+    setAddedRobots(loadFleetRobots());
+  }, []);
+
+  const allRobots = useMemo<RenderableRobot[]>(
+    () => [
+      ...addedRobots.map((robot) => ({
+        theme: robot.theme,
+        assetId: robot.assetId,
+        callSign: robot.callSign,
+        fleetClass: robot.fleetClass,
+        mission: robot.mission,
+        persona: robot.persona,
+        signal: robot.signal,
+        workload: robot.workload,
+        accent: robot.accent,
+        status: robot.status,
+        ageMonths: robot.ageMonths,
+        generatedRevenueEur: robot.generatedRevenueEur,
+        assetValueEur: robot.assetValueEur,
+        customer: robot.customer,
+        isNew: true,
+      })),
+      ...robotCards.map((robot) => ({ ...robot, isNew: false })),
+    ],
+    [addedRobots],
+  );
+
+  const totalGeneratedRevenueEur = useMemo(
+    () => allRobots.reduce((sum, robot) => sum + robot.generatedRevenueEur, 0),
+    [allRobots],
+  );
+  const totalAssetValueEur = useMemo(
+    () => allRobots.reduce((sum, robot) => sum + robot.assetValueEur, 0),
+    [allRobots],
+  );
+
   return (
     <div className="min-h-screen p-3 font-sans text-[#172033] lg:p-5">
       <main className="technical-blueprint technical-paper relative min-h-[calc(100vh-1.5rem)] overflow-hidden border border-blue-500/20 bg-[#f7f5ef]/80 shadow-[0_24px_90px_rgba(23,32,51,0.10)] lg:min-h-[calc(100vh-2.5rem)]">
@@ -393,7 +430,7 @@ export default function RobotsPage() {
                   Fleet Size
                 </p>
                 <div className="mt-2 font-mono text-4xl font-semibold tracking-[-0.08em] text-[#172033]">
-                  {robotCards.length}
+                  {allRobots.length}
                 </div>
                 <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
                   Bots online
@@ -424,17 +461,21 @@ export default function RobotsPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            {robotCards.map((robot, index) => {
+            {allRobots.map((robot, index) => {
               const thumbnailPose = thumbnailPoses[index % thumbnailPoses.length];
               const isRunning = robot.status === "running";
               const statusLabel = isRunning ? "Running" : "Idle";
 
               return (
                 <Link
-                  key={robot.assetId}
+                  key={`${robot.isNew ? "new" : "static"}-${robot.assetId}`}
                   href={`/?theme=${robot.theme}#robot`}
                   onClick={() => saveStoredTheme(robot.theme)}
-                  className="panel-glass group flex items-center gap-6 overflow-hidden py-4 pl-4 pr-10 transition hover:border-blue-500/40 hover:shadow-[0_18px_45px_rgba(23,32,51,0.10)]"
+                  className={`panel-glass group flex items-center gap-6 overflow-hidden py-4 pl-4 pr-10 transition hover:shadow-[0_18px_45px_rgba(23,32,51,0.10)] ${
+                    robot.isNew
+                      ? "border border-blue-500/45 hover:border-blue-500/60"
+                      : "hover:border-blue-500/40"
+                  }`}
                 >
                   <div
                     className="relative h-32 w-44 shrink-0 overflow-hidden border border-blue-500/15"
@@ -452,6 +493,11 @@ export default function RobotsPage() {
                     <div className="truncate text-base font-semibold tracking-[-0.04em] text-[#172033]">
                       {robot.callSign}
                     </div>
+                    {robot.isNew && (
+                      <span className="inline-flex shrink-0 items-center border border-blue-500/40 bg-blue-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-700">
+                        New
+                      </span>
+                    )}
                     <span
                       className={`inline-flex shrink-0 items-center gap-2 border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${
                         isRunning
