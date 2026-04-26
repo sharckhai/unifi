@@ -434,7 +434,7 @@ export default function RobotsPage() {
                   key={robot.assetId}
                   href={`/?theme=${robot.theme}#robot`}
                   onClick={() => saveStoredTheme(robot.theme)}
-                  className="panel-glass group flex items-center gap-6 overflow-hidden p-4 transition hover:border-blue-500/40 hover:shadow-[0_18px_45px_rgba(23,32,51,0.10)]"
+                  className="panel-glass group flex items-center gap-6 overflow-hidden py-4 pl-4 pr-10 transition hover:border-blue-500/40 hover:shadow-[0_18px_45px_rgba(23,32,51,0.10)]"
                 >
                   <div
                     className="relative h-32 w-44 shrink-0 overflow-hidden border border-blue-500/15"
