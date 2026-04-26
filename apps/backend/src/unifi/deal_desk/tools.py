@@ -17,7 +17,7 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
-from unifi.cost.engine import compute_cost_per_pick, compute_customer_pricing
+from unifi.cost.engine import compute_cost_per_pick
 from unifi.deal_desk import catalog
 from unifi.deal_desk.schema import (
     Inquiry,
@@ -40,6 +40,46 @@ class ToolSession:
     client: genai.Client
     model: str
     robots_listed: bool = False
+
+
+_INQUIRY_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "customer_name": types.Schema(type=types.Type.STRING),
+        "industry": types.Schema(type=types.Type.STRING),
+        "weight_mix": types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "light_share": types.Schema(type=types.Type.NUMBER),
+                "medium_share": types.Schema(type=types.Type.NUMBER),
+                "heavy_share": types.Schema(type=types.Type.NUMBER),
+            },
+            required=["light_share", "medium_share", "heavy_share"],
+        ),
+        "is_one_time_project": types.Schema(type=types.Type.BOOLEAN),
+        "expected_picks_per_month": types.Schema(type=types.Type.INTEGER),
+        "seasonality": types.Schema(type=types.Type.STRING),
+        "notes": types.Schema(type=types.Type.STRING),
+        "fleet_size": types.Schema(type=types.Type.INTEGER, nullable=True),
+        "term_preference_months": types.Schema(
+            type=types.Type.INTEGER, nullable=True
+        ),
+        "flexibility_priority": types.Schema(
+            type=types.Type.STRING,
+            enum=["low", "medium", "high"],
+            nullable=True,
+        ),
+    },
+    required=[
+        "customer_name",
+        "industry",
+        "weight_mix",
+        "is_one_time_project",
+        "expected_picks_per_month",
+        "seasonality",
+        "notes",
+    ],
+)
 
 
 _PRICING_GRID: dict[str, dict[str, list[float] | float]] = {
@@ -66,15 +106,32 @@ def analyze_pdf_inquiry(pdf_path: str, session: ToolSession) -> Inquiry:
         contents=[
             types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
             (
-                "Extract the structured inquiry data from this customer letter. "
-                "Map weight mentions to light (≤1 kg), medium (1–3 kg), heavy (>3 kg). "
-                "Convert any annual volume to monthly (divide by 12). "
-                "If a field is not stated, use a sensible default and note it in `notes`."
+                "Extract only what the customer explicitly states.\n\n"
+                "Set `is_one_time_project` to true if the customer asks for a "
+                "single batch / one-off run / fixed total volume with no "
+                "recurring follow-up. False for recurring monthly volume.\n\n"
+                "Volume: count placements (picks), not finished assemblies. "
+                "If the customer mentions N units and each requires K "
+                "components, the volume is N × K picks. For a recurring "
+                "contract (`is_one_time_project = false`), put picks per "
+                "month in `expected_picks_per_month`. For a one-time project "
+                "(`is_one_time_project = true`), put the full one-off total "
+                "in `expected_picks_per_month` — the agent will derive the "
+                "project duration from robot capacity.\n\n"
+                "Weight mix: light = ≤1 kg, medium = 1–3 kg, heavy = >3 kg. "
+                "Use the share of picks (not assemblies) per class.\n\n"
+                "Set `fleet_size`, `term_preference_months`, and "
+                "`flexibility_priority` to null if the customer did not state "
+                "them — those are recommendations the agent will derive from "
+                "robot specs and standard contract conventions. Do not "
+                "fabricate values.\n\n"
+                "Use `notes` to capture anything else the customer mentions "
+                "that doesn't fit the structured fields."
             ),
         ],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=Inquiry,
+            response_schema=_INQUIRY_SCHEMA,
         ),
     )
     return Inquiry.model_validate_json(response.text)
@@ -127,26 +184,23 @@ def get_pricing_history(
             wear_rate_multiplier=multiplier,
             motor_load_ratio_max=motor_load_ratio_max,
         )
-        pricing = compute_customer_pricing(cost=cost)
         points.append(
             PricingPoint(
                 wear_rate_multiplier=multiplier,
-                production_cost_eur_per_pick=cost.total_eur,
-                customer_price_eur_per_pick=pricing.customer_price_eur_per_pick,
+                eur_per_pick=cost.total_eur,
             )
         )
 
-    customer_prices = [p.customer_price_eur_per_pick for p in points]
-    sorted_prices = sorted(customer_prices)
-    median = sorted_prices[len(sorted_prices) // 2]
+    prices = sorted(p.eur_per_pick for p in points)
+    median = prices[len(prices) // 2]
     return PricingCurve(
         robot_name=robot_name,
         weight_class=weight_class,
         timestep_granularity=timestep,
         points=points,
         median_eur_per_pick=median,
-        range_low_eur_per_pick=min(customer_prices),
-        range_high_eur_per_pick=max(customer_prices),
+        range_low_eur_per_pick=prices[0],
+        range_high_eur_per_pick=prices[-1],
     )
 
 
@@ -159,9 +213,13 @@ def compare_leasing_and_unifi(
 ) -> LeasingComparison:
     """Cash-flow + risk comparison. No balance-sheet inputs.
 
-    `expected_eur_per_pick` is the median from `get_pricing_history` for
-    the dominant weight class — passed in by the agent so this tool stays
-    arithmetic-only.
+    UNIFI-Pricing kombiniert eine zeitbasierte Base Fee pro Roboter
+    (deckt CapEx-Anteil + Plattform-Marge) mit dem Pay-per-Pick
+    (`expected_eur_per_pick` = production cost aus get_pricing_history).
+    Ohne die Base Fee subventioniert UNIFI implizit niedrige
+    Auslastung — der Roboter steht auf UNIFIs Bilanz, refinanziert
+    wird er aber nur über den Wear-Anteil pro tatsächlich gefahrenem
+    Pick.
     """
     datasheet = catalog.get_datasheet(robot_name)
     leasing_monthly = (
@@ -169,14 +227,34 @@ def compare_leasing_and_unifi(
     )
     leasing_total = leasing_monthly * term_months
 
-    unifi_monthly_expected = expected_eur_per_pick * expected_picks_per_month
-    unifi_total = unifi_monthly_expected * term_months
-    unifi_monthly_low = unifi_monthly_expected * 0.7
-    unifi_monthly_high = unifi_monthly_expected * 1.3
-
-    break_even = (
-        leasing_monthly / expected_eur_per_pick if expected_eur_per_pick > 0 else 0.0
+    picks_per_robot_per_month = (
+        expected_picks_per_month / fleet_size if fleet_size > 0 else 0.0
     )
+    base_fee_per_robot = catalog.base_fee_eur_per_robot_per_month(
+        robot_name, picks_per_robot_per_month=picks_per_robot_per_month
+    )
+    base_fee_monthly = base_fee_per_robot * fleet_size
+    base_fee_total = base_fee_monthly * term_months
+
+    pay_per_pick_monthly = expected_eur_per_pick * expected_picks_per_month
+    pay_per_pick_total = pay_per_pick_monthly * term_months
+
+    unifi_monthly_expected = base_fee_monthly + pay_per_pick_monthly
+    unifi_total = base_fee_total + pay_per_pick_total
+    # Variability comes from the pay-per-pick component only — the base
+    # fee is fixed regardless of volume.
+    unifi_monthly_low = base_fee_monthly + pay_per_pick_monthly * 0.7
+    unifi_monthly_high = base_fee_monthly + pay_per_pick_monthly * 1.3
+
+    # Break-even = picks/month at which UNIFI total equals classical
+    # leasing total. Solve: leasing_monthly = base_fee_monthly +
+    # picks × eur_per_pick.
+    if expected_eur_per_pick > 0:
+        break_even = max(
+            0.0, (leasing_monthly - base_fee_monthly) / expected_eur_per_pick
+        )
+    else:
+        break_even = 0.0
     savings_at_minus_30 = (leasing_monthly - unifi_monthly_low) * term_months
 
     return LeasingComparison(
@@ -190,9 +268,13 @@ def compare_leasing_and_unifi(
             cash_flow_profile="fixed",
         ),
         unifi=UnifiSide(
+            base_fee_monthly_eur=base_fee_monthly,
+            pay_per_pick_monthly_eur=pay_per_pick_monthly,
             expected_monthly_eur=unifi_monthly_expected,
             monthly_low_eur=unifi_monthly_low,
             monthly_high_eur=unifi_monthly_high,
+            base_fee_total_eur=base_fee_total,
+            pay_per_pick_total_eur=pay_per_pick_total,
             total_cost_over_term_eur=unifi_total,
             cash_flow_profile="volume_coupled",
         ),

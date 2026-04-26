@@ -12,10 +12,62 @@ factor`. Source: market-typical for Western-Europe equipment leases at
 
 from __future__ import annotations
 
+from unifi.cost.schema import OperatingProfile
 from unifi.deal_desk.schema import RobotInfo, RobotSummary
 from unifi.ucs.schema import UcsDatasheet
 
-MONTHLY_LEASING_FACTOR: float = 0.022
+MONTHLY_LEASING_FACTOR: float = 0.0215
+_DEFAULT_OPERATING_PROFILE = OperatingProfile()
+
+# Base fee per robot per month — utilization-scaled.
+#
+# At zero usage UNIFI carries the full underuse risk: the robot sits on
+# UNIFI's balance sheet, depreciates by time alone, and incurs platform
+# overhead — so the base fee is at its maximum.
+#
+# At full nominal utilization the usage-based per-pick wear charge
+# already recovers a substantial share of CapEx by itself, so the base
+# fee tapers down to a floor that covers only the time-independent
+# pieces (insurance, platform overhead, residual time-decay).
+#
+# Linear taper between max and floor over the [0, 100 %] utilization
+# band, capped at the floor for over-nominal usage. Calibrated so that
+# both low-volume (Bela) and high-volume (Anna) scenarios land at
+# roughly leasing +10 %.
+_MONTHLY_BASE_FEE_MAX_EUR: dict[str, float] = {
+    "UR5": 700.0,
+    "SCARA": 450.0,
+}
+_MONTHLY_BASE_FEE_FLOOR_EUR: dict[str, float] = {
+    "UR5": 80.0,
+    "SCARA": 60.0,
+}
+
+
+def _nominal_picks_per_month(robot_name: str) -> float:
+    ds = _CATALOG[robot_name]
+    return _DEFAULT_OPERATING_PROFILE.resolve_picks_per_year(ds) / 12.0
+
+
+def base_fee_eur_per_robot_per_month(
+    robot_name: str,
+    picks_per_robot_per_month: float = 0.0,
+) -> float:
+    """Utilization-scaled monthly base fee for one robot.
+
+    Returns the maximum at zero usage and tapers linearly to the floor
+    at nominal capacity. Past nominal capacity the floor holds — there
+    is no negative base fee.
+    """
+    if robot_name not in _MONTHLY_BASE_FEE_MAX_EUR:
+        raise KeyError(robot_name)
+    max_fee = _MONTHLY_BASE_FEE_MAX_EUR[robot_name]
+    floor_fee = _MONTHLY_BASE_FEE_FLOOR_EUR[robot_name]
+    nominal = _nominal_picks_per_month(robot_name)
+    if nominal <= 0:
+        return max_fee
+    utilization = min(max(picks_per_robot_per_month / nominal, 0.0), 1.0)
+    return floor_fee + (max_fee - floor_fee) * (1.0 - utilization)
 
 
 UR5_DATASHEET = UcsDatasheet(
@@ -117,6 +169,8 @@ def get_datasheet(robot_name: str) -> UcsDatasheet:
 
 def build_robot_info(robot_name: str) -> RobotInfo:
     ds = get_datasheet(robot_name)
+    picks_per_year = _DEFAULT_OPERATING_PROFILE.resolve_picks_per_year(ds)
+    picks_per_hour = (3600.0 / ds.rated_cycle_time_s) * ds.nominal_duty_cycle
     return RobotInfo(
         name=robot_name,
         robot_class=ds.robot_class,
@@ -124,8 +178,11 @@ def build_robot_info(robot_name: str) -> RobotInfo:
         nominal_picks_lifetime=ds.nominal_picks_lifetime,
         rated_payload_kg=ds.rated_payload_kg,
         rated_cycle_time_s=ds.rated_cycle_time_s,
+        nominal_duty_cycle=ds.nominal_duty_cycle,
         power_consumption_w=ds.power_consumption_w or 0.0,
         maintenance_cost_pct_per_year=ds.maintenance_cost_pct_per_year,
+        picks_per_hour_at_full_duty=picks_per_hour,
+        nominal_picks_per_month_per_robot=picks_per_year // 12,
         suitable_for=_SUITABLE[robot_name],
         not_suitable_for=_NOT_SUITABLE[robot_name],
     )

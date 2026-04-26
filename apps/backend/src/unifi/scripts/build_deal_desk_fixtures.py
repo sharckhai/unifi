@@ -1,9 +1,11 @@
 """Render the deal-desk fixture inquiries (Markdown) to PDF.
 
 Reads all `*.md` files under `apps/backend/tests/fixtures/deal-desk/` and
-emits a sibling `*.pdf` for each. Minimal Markdown subset: first `# H1`
-becomes the document title, blank-line-separated paragraphs become body
-paragraphs. Anything else is treated as plain text.
+emits a sibling `*.pdf` for each. Minimal Markdown subset:
+
+- First `# H1` line becomes the document title.
+- Lines starting with `- ` or `* ` become bullet items.
+- Other blank-line-separated text becomes body paragraphs.
 
 Run from the backend root:
     uv run python -m unifi.scripts.build_deal_desk_fixtures
@@ -27,28 +29,40 @@ DEFAULT_FIXTURES_DIR = (
 )
 
 
-def parse_markdown(text: str) -> tuple[str, list[str]]:
+def parse_markdown(text: str) -> tuple[str, list[tuple[str, str]]]:
+    """Return (title, blocks) where each block is (kind, content).
+
+    `kind` is "paragraph" or "bullet".
+    """
     title = ""
-    paragraphs: list[str] = []
-    current: list[str] = []
+    blocks: list[tuple[str, str]] = []
+    current_para: list[str] = []
+
+    def flush_para() -> None:
+        if current_para:
+            blocks.append(("paragraph", " ".join(current_para).strip()))
+            current_para.clear()
+
     for raw_line in text.splitlines():
         line = raw_line.rstrip()
         if not title and line.startswith("# "):
             title = line[2:].strip()
             continue
-        if line == "":
-            if current:
-                paragraphs.append(" ".join(current).strip())
-                current = []
+        stripped = line.lstrip()
+        if stripped.startswith("- ") or stripped.startswith("* "):
+            flush_para()
+            blocks.append(("bullet", stripped[2:].strip()))
             continue
-        current.append(line)
-    if current:
-        paragraphs.append(" ".join(current).strip())
-    return title, paragraphs
+        if line == "":
+            flush_para()
+            continue
+        current_para.append(line)
+    flush_para()
+    return title, blocks
 
 
 def render_pdf(md_path: pathlib.Path, pdf_path: pathlib.Path) -> None:
-    title, paragraphs = parse_markdown(md_path.read_text())
+    title, blocks = parse_markdown(md_path.read_text())
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -65,6 +79,13 @@ def render_pdf(md_path: pathlib.Path, pdf_path: pathlib.Path) -> None:
         leading=15,
         spaceAfter=10,
     )
+    bullet_style = ParagraphStyle(
+        "BulletStyle",
+        parent=body_style,
+        leftIndent=18,
+        bulletIndent=4,
+        spaceAfter=4,
+    )
 
     doc = SimpleDocTemplate(
         str(pdf_path),
@@ -74,15 +95,17 @@ def render_pdf(md_path: pathlib.Path, pdf_path: pathlib.Path) -> None:
         topMargin=2.5 * cm,
         bottomMargin=2.5 * cm,
         title=title or md_path.stem,
-        author="Anna Becker",
     )
 
     story = []
     if title:
         story.append(Paragraph(title, title_style))
-    for paragraph in paragraphs:
-        story.append(Paragraph(paragraph, body_style))
-        story.append(Spacer(1, 0.1 * cm))
+    for kind, content in blocks:
+        if kind == "bullet":
+            story.append(Paragraph(content, bullet_style, bulletText="•"))
+        else:
+            story.append(Paragraph(content, body_style))
+            story.append(Spacer(1, 0.1 * cm))
 
     doc.build(story)
 

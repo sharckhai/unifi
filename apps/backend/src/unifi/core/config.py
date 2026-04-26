@@ -10,10 +10,15 @@ from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
+BACKEND_ENV_FILE = REPO_ROOT / "apps" / "backend" / ".env"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="UNIFI_", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="UNIFI_",
+        extra="ignore",
+        env_file=str(BACKEND_ENV_FILE),
+    )
 
     data_dir: Path = REPO_ROOT / "data"
     ur5_dir: Path = REPO_ROOT / "data" / "nist-ur5-degradation"

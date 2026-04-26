@@ -29,11 +29,12 @@ def _stub_offer() -> Offer:
             term_months=60,
         ),
         pricing=OfferPricing(
+            base_fee_monthly_eur=6_000.0,
             eur_per_pick_min=0.0023,
             eur_per_pick_median=0.0029,
             eur_per_pick_max=0.0033,
-            expected_monthly_eur=5_800.0,
-            peak_monthly_eur=6_960.0,
+            expected_monthly_eur=11_800.0,
+            peak_monthly_eur=12_960.0,
         ),
         scenarios=[
             Scenario(
@@ -48,7 +49,9 @@ def _stub_offer() -> Offer:
         ],
         comparison=OfferComparison(
             leasing_total_eur=462_000.0,
-            unifi_total_eur=348_000.0,
+            unifi_base_fee_total_eur=360_000.0,
+            unifi_pay_per_pick_total_eur=348_000.0,
+            unifi_total_eur=708_000.0,
             cash_flow_narrative="UNIFI scales with volume",
             risk_narrative="Save ~136 k€ at -30 % volume",
         ),
