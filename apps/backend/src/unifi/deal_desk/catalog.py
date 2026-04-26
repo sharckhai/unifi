@@ -16,7 +16,7 @@ from unifi.cost.schema import OperatingProfile
 from unifi.deal_desk.schema import RobotInfo, RobotSummary
 from unifi.ucs.schema import UcsDatasheet
 
-MONTHLY_LEASING_FACTOR: float = 0.022
+MONTHLY_LEASING_FACTOR: float = 0.0215
 _DEFAULT_OPERATING_PROFILE = OperatingProfile()
 
 # Base fee per robot per month — covers ~80 % of the robot's purchase price
