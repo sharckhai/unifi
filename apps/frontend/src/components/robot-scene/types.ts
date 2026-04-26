@@ -85,10 +85,27 @@ export type SortedCubeEvent = {
   totalSorted: number;
 };
 
+export type CameraViewMode =
+  | "normal"
+  | "robotHero"
+  | "cinematic"
+  | "povAction"
+  | "armLogo";
+
+export type PickCostEffectPayload = {
+  cubeId: number;
+  kind: CubeKind;
+  totalCostEur: number;
+};
+
 export type SceneActions = {
   spawnCube: () => void;
   resetCubes: () => void;
   setSpeedMultiplier: (speedMultiplier: number) => void;
+  setCameraViewMode: (cameraViewMode: CameraViewMode) => void;
+  setCostParticlesEnabled: (enabled: boolean) => void;
+  setSoundEnabled: (enabled: boolean) => void;
+  showPickCostEffect: (payload: PickCostEffectPayload) => void;
 };
 
 export type RobotColorTheme =
@@ -114,6 +131,7 @@ export type RobotSceneProps = {
   isPlaying?: boolean;
   onTimeChange?: (time: number) => void;
   onCubeSorted?: (event: SortedCubeEvent) => void;
+  pickCostEffect?: PickCostEffectPayload | null;
   robotTheme?: RobotColorTheme;
   showControls?: boolean;
   className?: string;

@@ -1,10 +1,13 @@
 import * as THREE from "three";
-import { HOME_POSE, SORTING_BINS, SORTING_OUTER_RADIUS } from "./constants";
+import { createRobotAudio } from "./audio";
+import { HOME_POSE, ROBOT_FOREARM_LENGTH, SORTING_BINS } from "./constants";
 import { applyPoseToRig, clampPolarAngle } from "./motion";
 import { applyGripperToRig, buildRobotRig } from "./rig";
 import { addBinColliders, createSortingSector } from "./sortingBins";
 import { createSortingSimulation } from "./sortingSimulation";
 import type {
+  CameraViewMode,
+  PickCostEffectPayload,
   RapierModule,
   RapierWorld,
   RobotColorTheme,
@@ -25,7 +28,21 @@ type RobotMaterialPalette = {
   dark: number;
 };
 
+type PickCostEffect = {
+  label: THREE.Sprite;
+  sparks: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  velocities: Float32Array;
+  age: number;
+  duration: number;
+};
+
 const SCENE_FLOOR_RADIUS = 3.25;
+const NORMAL_CAMERA_FOV = 38;
+const CINEMATIC_CAMERA_FOV = 37;
+const POV_CAMERA_FOV = 68;
+const ARM_LOGO_CAMERA_FOV = 43;
+const ROBOT_HERO_CAMERA_FOV = 32;
+const CAMERA_TRANSITION_SPEED = 5.5;
 
 export const ROBOT_COLOR_THEMES: RobotMaterialPalette[] = [
   { id: "white", label: "White", shell: 0xf8fafc, joint: 0xe5e7eb, dark: 0x10141d },
@@ -49,7 +66,41 @@ export const ROBOT_COLOR_THEMES: RobotMaterialPalette[] = [
 type RobotSceneOptions = {
   robotTheme?: RobotColorTheme;
   speedMultiplier?: number;
+  cameraViewMode?: CameraViewMode;
+  costParticlesEnabled?: boolean;
 };
+
+function createCostLabelTexture(label: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 192;
+
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "rgba(15, 23, 42, 0.82)";
+  context.fillRect(28, 32, 456, 112);
+  context.strokeStyle = "rgba(31, 85, 255, 0.72)";
+  context.lineWidth = 5;
+  context.strokeRect(28, 32, 456, 112);
+  context.fillStyle = "#f8fafc";
+  context.font = "800 54px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(label, canvas.width / 2, 82);
+  context.fillStyle = "rgba(191, 219, 254, 0.92)";
+  context.font = "700 22px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  context.fillText("COST / PICK", canvas.width / 2, 122);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  return texture;
+}
 
 export async function startRobotScene(
   container: HTMLDivElement,
@@ -71,7 +122,7 @@ export async function startRobotScene(
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(
-    38,
+    NORMAL_CAMERA_FOV,
     container.clientWidth / container.clientHeight,
     0.1,
     100,
@@ -82,13 +133,23 @@ export async function startRobotScene(
   const cameraOffset = new THREE.Vector3().subVectors(camera.position, orbitTarget);
   const orbit = new THREE.Spherical().setFromVector3(cameraOffset);
   orbit.phi = clampPolarAngle(orbit.phi);
+  let cameraViewMode: CameraViewMode = options.cameraViewMode ?? "normal";
+  let targetCameraFov = NORMAL_CAMERA_FOV;
+  let targetCameraRoll = 0;
+  let currentCameraRoll = 0;
+  const targetCameraPosition = camera.position.clone();
+  const targetCameraLookAt = orbitTarget.clone();
+  const currentCameraLookAt = orbitTarget.clone();
 
   const updateCameraOrbit = () => {
-    camera.position.copy(new THREE.Vector3().setFromSpherical(orbit).add(orbitTarget));
-    camera.lookAt(orbitTarget);
+    targetCameraFov = NORMAL_CAMERA_FOV;
+    targetCameraRoll = 0;
+    targetCameraPosition.setFromSpherical(orbit).add(orbitTarget);
+    targetCameraLookAt.copy(orbitTarget);
   };
 
   updateCameraOrbit();
+  camera.lookAt(currentCameraLookAt);
 
   const sceneRoot = new THREE.Group();
   sceneRoot.position.set(-0.16, -1.08, 0);
@@ -164,6 +225,235 @@ export async function startRobotScene(
   sceneRoot.add(robot);
   applyGripperToRig(gripper, 1);
 
+  const armLogoLocalY = ROBOT_FOREARM_LENGTH * 0.5;
+  const armLogoCameraAnchor = new THREE.Object3D();
+  const armLogoTargetAnchor = new THREE.Object3D();
+  armLogoCameraAnchor.position.set(0.88, armLogoLocalY + 0.15, 1.42);
+  armLogoTargetAnchor.position.set(0, armLogoLocalY + 0.2, 0.112);
+  rig.elbowPitch.add(armLogoCameraAnchor, armLogoTargetAnchor);
+
+  const povCameraPosition = new THREE.Vector3();
+  const povCameraTarget = new THREE.Vector3();
+  const wiggleOffset = new THREE.Vector3();
+  const armLogoCameraPosition = new THREE.Vector3();
+  const armLogoCameraTarget = new THREE.Vector3();
+  const robotHeroFocus = new THREE.Vector3();
+  const robotHeroCameraPosition = new THREE.Vector3();
+
+  const updateCinematicCamera = (elapsedSeconds: number) => {
+    const sweep = elapsedSeconds * 0.22;
+    const radius = 5.78 + Math.sin(elapsedSeconds * 0.42) * 0.16;
+    const height = 2.32 + Math.sin(elapsedSeconds * 0.58) * 0.1;
+    const target = new THREE.Vector3(
+      Math.sin(elapsedSeconds * 0.31) * 0.05,
+      0.34,
+      0.18,
+    );
+
+    targetCameraFov = CINEMATIC_CAMERA_FOV;
+    targetCameraRoll = 0;
+    targetCameraPosition.set(Math.cos(sweep) * radius, height, Math.sin(sweep) * radius);
+    targetCameraLookAt.copy(target);
+  };
+
+  const updateRobotHeroCamera = (elapsedSeconds: number) => {
+    const sequenceTime = elapsedSeconds % 8.4;
+    const beat = Math.floor(elapsedSeconds * 2.35);
+    const beatKick = Math.sin(elapsedSeconds * 15.8) * 0.035;
+    const cutShake = Math.sin(beat * 12.9898) * 0.045;
+
+    targetCameraFov = ROBOT_HERO_CAMERA_FOV + Math.sin(elapsedSeconds * 7.2) * 2.6;
+
+    if (sequenceTime < 1.05) {
+      const progress = sequenceTime / 1.05;
+      robotHeroCameraPosition.set(
+        THREE.MathUtils.lerp(4.7, 1.95, progress),
+        0.46 + progress * 0.28 + beatKick,
+        THREE.MathUtils.lerp(3.35, 1.05, progress),
+      );
+      robotHeroFocus.set(-0.06, 0.58 + progress * 0.22, 0.18);
+      targetCameraRoll = -0.16 + progress * 0.08 + cutShake;
+    } else if (sequenceTime < 2.05) {
+      const progress = (sequenceTime - 1.05) / 1;
+      robotHeroCameraPosition.set(
+        THREE.MathUtils.lerp(-1.65, -3.2, progress),
+        0.9 + Math.sin(progress * Math.PI) * 0.22,
+        THREE.MathUtils.lerp(1.18, -0.55, progress),
+      );
+      robotHeroFocus.set(0.02, 0.78, 0.08);
+      targetCameraRoll = 0.18 - progress * 0.26 + cutShake;
+    } else if (sequenceTime < 3.1) {
+      const progress = (sequenceTime - 2.05) / 1.05;
+      robotHeroCameraPosition.set(
+        THREE.MathUtils.lerp(1.02, 2.45, progress),
+        THREE.MathUtils.lerp(1.28, 0.76, progress),
+        THREE.MathUtils.lerp(-2.35, -1.38, progress),
+      );
+      robotHeroFocus.set(-0.06, 0.96 - progress * 0.28, 0.02);
+      targetCameraRoll = -0.24 + Math.sin(progress * Math.PI) * 0.32 + cutShake;
+    } else if (sequenceTime < 4.25) {
+      const progress = (sequenceTime - 3.1) / 1.15;
+      const sweep = -0.7 + progress * 2.4;
+      robotHeroCameraPosition.set(
+        Math.cos(sweep) * 2.25,
+        0.42 + Math.sin(progress * Math.PI) * 0.28,
+        Math.sin(sweep) * 2.25,
+      );
+      robotHeroFocus.set(0.0, 0.5 + progress * 0.22, 0.05);
+      targetCameraRoll = 0.12 + Math.sin(progress * Math.PI * 2) * 0.13 + cutShake;
+    } else if (sequenceTime < 5.4) {
+      const progress = (sequenceTime - 4.25) / 1.15;
+      robotHeroCameraPosition.set(
+        THREE.MathUtils.lerp(-3.15, -1.35, progress),
+        THREE.MathUtils.lerp(0.66, 1.12, progress),
+        THREE.MathUtils.lerp(-1.9, -3.05, progress),
+      );
+      robotHeroFocus.set(-0.12, 0.72 + Math.sin(progress * Math.PI) * 0.28, 0.12);
+      targetCameraRoll = -0.08 - progress * 0.18 + cutShake;
+    } else if (sequenceTime < 6.55) {
+      const progress = (sequenceTime - 5.4) / 1.15;
+      robotHeroCameraPosition.set(
+        THREE.MathUtils.lerp(0.76, 2.82, progress),
+        1.16 + Math.sin(progress * Math.PI) * 0.12,
+        THREE.MathUtils.lerp(2.42, 1.18, progress),
+      );
+      robotHeroFocus.set(0.02, 0.78, 0.02);
+      targetCameraRoll = 0.24 - progress * 0.36 + cutShake;
+    } else {
+      const progress = (sequenceTime - 6.55) / 1.85;
+      const sweep = 2.6 + progress * 3.2;
+      const radius = 3.25 - Math.sin(progress * Math.PI) * 0.86;
+      robotHeroCameraPosition.set(
+        Math.cos(sweep) * radius,
+        0.78 + Math.sin(progress * Math.PI * 2) * 0.18,
+        Math.sin(sweep) * radius,
+      );
+      robotHeroFocus.set(
+        Math.sin(elapsedSeconds * 1.8) * 0.12,
+        0.68 + Math.cos(elapsedSeconds * 1.5) * 0.18,
+        0.08,
+      );
+      targetCameraRoll = Math.sin(progress * Math.PI * 3) * 0.18 + cutShake;
+    }
+
+    targetCameraPosition.copy(robotHeroCameraPosition);
+    targetCameraLookAt.copy(robotHeroFocus);
+  };
+
+  const updatePovCamera = (elapsedSeconds: number, withActionWiggle: boolean) => {
+    targetCameraFov = POV_CAMERA_FOV;
+    targetCameraRoll = 0;
+    povCameraPosition.copy(pinchAnchor.localToWorld(new THREE.Vector3(0, -0.84, 0.24)));
+    povCameraTarget.copy(pinchAnchor.localToWorld(new THREE.Vector3(0, 0.82, -0.1)));
+
+    if (withActionWiggle) {
+      wiggleOffset.set(
+        Math.sin(elapsedSeconds * 9.1) * 0.018 + Math.sin(elapsedSeconds * 17.3) * 0.006,
+        Math.sin(elapsedSeconds * 11.7) * 0.012,
+        Math.cos(elapsedSeconds * 8.4) * 0.014,
+      );
+      povCameraPosition.add(wiggleOffset);
+      povCameraTarget.addScaledVector(wiggleOffset, 0.35);
+    }
+
+    targetCameraPosition.copy(povCameraPosition);
+    targetCameraLookAt.copy(povCameraTarget);
+  };
+
+  const updateArmLogoCamera = () => {
+    targetCameraFov = ARM_LOGO_CAMERA_FOV;
+    targetCameraRoll = 0;
+    armLogoCameraAnchor.getWorldPosition(armLogoCameraPosition);
+    armLogoTargetAnchor.getWorldPosition(armLogoCameraTarget);
+    targetCameraPosition.copy(armLogoCameraPosition);
+    targetCameraLookAt.copy(armLogoCameraTarget);
+  };
+
+  const updateCameraForMode = (elapsedSeconds: number) => {
+    if (cameraViewMode === "cinematic") {
+      updateCinematicCamera(elapsedSeconds);
+      return;
+    }
+
+    if (cameraViewMode === "robotHero") {
+      updateRobotHeroCamera(elapsedSeconds);
+      return;
+    }
+
+    if (cameraViewMode === "povAction") {
+      updatePovCamera(elapsedSeconds, true);
+      return;
+    }
+
+    if (cameraViewMode === "armLogo") {
+      updateArmLogoCamera();
+      return;
+    }
+
+    updateCameraOrbit();
+  };
+
+  const applyCameraToTarget = () => {
+    camera.position.copy(targetCameraPosition);
+    currentCameraLookAt.copy(targetCameraLookAt);
+    currentCameraRoll = targetCameraRoll;
+
+    if (Math.abs(camera.fov - targetCameraFov) > 0.001) {
+      camera.fov = targetCameraFov;
+      camera.updateProjectionMatrix();
+    }
+
+    camera.lookAt(currentCameraLookAt);
+    camera.rotateZ(currentCameraRoll);
+  };
+
+  let cameraTransitionSecondsRemaining = 0;
+
+  const updateCameraTransform = (deltaSeconds: number) => {
+    if (cameraTransitionSecondsRemaining <= 0) {
+      applyCameraToTarget();
+      return;
+    }
+
+    const ease = 1 - Math.exp(-CAMERA_TRANSITION_SPEED * deltaSeconds);
+    const nextFov = THREE.MathUtils.lerp(camera.fov, targetCameraFov, ease);
+
+    camera.position.lerp(targetCameraPosition, ease);
+    currentCameraLookAt.lerp(targetCameraLookAt, ease);
+    currentCameraRoll = THREE.MathUtils.lerp(currentCameraRoll, targetCameraRoll, ease);
+    cameraTransitionSecondsRemaining = Math.max(
+      0,
+      cameraTransitionSecondsRemaining - deltaSeconds,
+    );
+
+    if (Math.abs(camera.fov - nextFov) > 0.001) {
+      camera.fov = nextFov;
+      camera.updateProjectionMatrix();
+    }
+
+    camera.lookAt(currentCameraLookAt);
+    camera.rotateZ(currentCameraRoll);
+
+    if (cameraTransitionSecondsRemaining === 0) {
+      applyCameraToTarget();
+    }
+  };
+
+  const setCameraViewMode = (nextCameraViewMode: CameraViewMode) => {
+    const previousCameraViewMode = cameraViewMode;
+    cameraViewMode = nextCameraViewMode;
+    activePointerId = null;
+    renderer.domElement.style.cursor = cameraViewMode === "normal" ? "grab" : "default";
+
+    if (previousCameraViewMode !== nextCameraViewMode) {
+      cameraTransitionSecondsRemaining = 0.72;
+    }
+
+    if (cameraViewMode === "normal") {
+      updateCameraOrbit();
+    }
+  };
+
   SORTING_BINS.forEach((bin) => {
     sceneRoot.add(createSortingSector(bin));
     addBinColliders(world, RAPIER, bin);
@@ -177,6 +467,129 @@ export async function startRobotScene(
   const fillLight = new THREE.HemisphereLight(0xdce6ff, 0xf7f5ef, 2.25);
   scene.add(fillLight);
 
+  let animationFrame = 0;
+  let activePointerId: number | null = null;
+  let previousPointerX = 0;
+  let previousPointerY = 0;
+  let renderPose = { ...HOME_POSE };
+  let renderGripperOpen = 1;
+  let costParticlesEnabled = options.costParticlesEnabled ?? false;
+  const robotAudio = createRobotAudio();
+  const pickCostEffects: PickCostEffect[] = [];
+
+  const disposePickCostEffect = (effect: PickCostEffect) => {
+    sceneRoot.remove(effect.label, effect.sparks);
+    effect.label.material.map?.dispose();
+    effect.label.material.dispose();
+    effect.sparks.geometry.dispose();
+    effect.sparks.material.dispose();
+  };
+
+  const spawnPickCostEffect = (position: THREE.Vector3, totalCostEur: number) => {
+    const labelTexture = createCostLabelTexture(`€${totalCostEur.toFixed(4)}`);
+    const label = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: labelTexture,
+        transparent: true,
+        depthTest: false,
+      }),
+    );
+    label.position.copy(position).add(new THREE.Vector3(0, 0.52, 0));
+    label.scale.set(0.92, 0.34, 1);
+    label.renderOrder = 8;
+
+    const sparkCount = 22;
+    const sparkPositions = new Float32Array(sparkCount * 3);
+    const sparkVelocities = new Float32Array(sparkCount * 3);
+
+    for (let index = 0; index < sparkCount; index += 1) {
+      const offset = index * 3;
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 0.08 + Math.random() * 0.22;
+
+      sparkPositions[offset] = position.x + Math.cos(angle) * radius;
+      sparkPositions[offset + 1] = position.y + 0.24 + Math.random() * 0.22;
+      sparkPositions[offset + 2] = position.z + Math.sin(angle) * radius;
+      sparkVelocities[offset] = Math.cos(angle) * (0.06 + Math.random() * 0.12);
+      sparkVelocities[offset + 1] = 0.22 + Math.random() * 0.24;
+      sparkVelocities[offset + 2] = Math.sin(angle) * (0.06 + Math.random() * 0.12);
+    }
+
+    const sparkGeometry = new THREE.BufferGeometry();
+    sparkGeometry.setAttribute("position", new THREE.BufferAttribute(sparkPositions, 3));
+    const sparks = new THREE.Points(
+      sparkGeometry,
+      new THREE.PointsMaterial({
+        color: 0x1f55ff,
+        size: 0.045,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      }),
+    );
+    sparks.renderOrder = 7;
+
+    sceneRoot.add(label, sparks);
+    pickCostEffects.push({
+      label,
+      sparks,
+      velocities: sparkVelocities,
+      age: 0,
+      duration: 1.65,
+    });
+  };
+
+  const updatePickCostEffects = (deltaSeconds: number) => {
+    for (let index = pickCostEffects.length - 1; index >= 0; index -= 1) {
+      const effect = pickCostEffects[index];
+      effect.age += deltaSeconds;
+      const progress = THREE.MathUtils.clamp(effect.age / effect.duration, 0, 1);
+      const fade = 1 - progress;
+      const positions = effect.sparks.geometry.getAttribute("position");
+
+      for (let sparkIndex = 0; sparkIndex < positions.count; sparkIndex += 1) {
+        const offset = sparkIndex * 3;
+        positions.setXYZ(
+          sparkIndex,
+          positions.getX(sparkIndex) + effect.velocities[offset] * deltaSeconds,
+          positions.getY(sparkIndex) + effect.velocities[offset + 1] * deltaSeconds,
+          positions.getZ(sparkIndex) + effect.velocities[offset + 2] * deltaSeconds,
+        );
+      }
+
+      positions.needsUpdate = true;
+      effect.label.position.y += deltaSeconds * 0.28;
+      effect.label.material.opacity = fade;
+      effect.sparks.material.opacity = fade * 0.95;
+
+      if (effect.age >= effect.duration) {
+        pickCostEffects.splice(index, 1);
+        disposePickCostEffect(effect);
+      }
+    }
+  };
+
+  const clearPickCostEffects = () => {
+    while (pickCostEffects.length > 0) {
+      disposePickCostEffect(pickCostEffects.pop() as PickCostEffect);
+    }
+  };
+
+  const handleCubeSorted = (event: SortedCubeEvent) => {
+    onCubeSorted?.(event);
+  };
+
+  const showPickCostEffect = (payload: PickCostEffectPayload) => {
+    if (!costParticlesEnabled) {
+      return;
+    }
+
+    const dropPosition = SORTING_BINS[payload.kind === "heavy" ? 1 : 2].position
+      .clone()
+      .add(new THREE.Vector3(0, 0.92, 0));
+    spawnPickCostEffect(dropPosition, payload.totalCostEur);
+  };
+
   const sortingSimulation = createSortingSimulation({
     RAPIER,
     world,
@@ -185,17 +598,14 @@ export async function startRobotScene(
     pinchAnchor,
     heavyMaterial,
     lightMaterial,
-    onCubeSorted,
+    onCubeSorted: handleCubeSorted,
   });
 
-  let animationFrame = 0;
-  let activePointerId: number | null = null;
-  let previousPointerX = 0;
-  let previousPointerY = 0;
-  let renderPose = { ...HOME_POSE };
-  let renderGripperOpen = 1;
-
   const handlePointerDown = (event: PointerEvent) => {
+    if (cameraViewMode !== "normal") {
+      return;
+    }
+
     activePointerId = event.pointerId;
     previousPointerX = event.clientX;
     previousPointerY = event.clientY;
@@ -204,6 +614,10 @@ export async function startRobotScene(
   };
 
   const handlePointerMove = (event: PointerEvent) => {
+    if (cameraViewMode !== "normal") {
+      return;
+    }
+
     if (activePointerId !== event.pointerId) {
       return;
     }
@@ -229,6 +643,10 @@ export async function startRobotScene(
   };
 
   const handleWheel = (event: WheelEvent) => {
+    if (cameraViewMode !== "normal") {
+      return;
+    }
+
     event.preventDefault();
     orbit.radius = THREE.MathUtils.clamp(orbit.radius + event.deltaY * 0.004, 3.2, 8.2);
     updateCameraOrbit();
@@ -236,15 +654,18 @@ export async function startRobotScene(
 
   let previousTimestamp = performance.now();
   let speedMultiplier = options.speedMultiplier ?? 1;
+  setCameraViewMode(cameraViewMode);
 
   const animate = () => {
     const timestamp = performance.now();
     const delta = Math.min((timestamp - previousTimestamp) / 1000, 1 / 30);
+    const elapsedSeconds = timestamp / 1000;
     previousTimestamp = timestamp;
 
     const state = sortingSimulation.update(delta * speedMultiplier);
     renderPose = state.currentPose;
     renderGripperOpen = state.currentGripperOpen;
+    robotAudio.updateMotion(renderPose, renderGripperOpen, delta * speedMultiplier);
 
     applyGripperToRig(gripper, renderGripperOpen);
     applyPoseToRig(rig, renderPose);
@@ -264,6 +685,10 @@ export async function startRobotScene(
     sortingSimulation.syncCubeMeshes();
     applyPoseToRig(rig, renderPose);
     applyGripperToRig(gripper, renderGripperOpen);
+    sceneRoot.updateMatrixWorld(true);
+    updatePickCostEffects(delta);
+    updateCameraForMode(elapsedSeconds);
+    updateCameraTransform(delta);
     renderer.render(scene, camera);
     animationFrame = window.requestAnimationFrame(animate);
   };
@@ -292,6 +717,8 @@ export async function startRobotScene(
     renderer.domElement.removeEventListener("pointerup", handlePointerUp);
     renderer.domElement.removeEventListener("pointercancel", handlePointerUp);
     renderer.domElement.removeEventListener("wheel", handleWheel);
+    clearPickCostEffects();
+    robotAudio.dispose();
     world.free();
     scene.traverse((object) => {
       if (object instanceof THREE.Mesh) {
@@ -322,10 +749,19 @@ export async function startRobotScene(
   return {
     actions: {
       spawnCube: sortingSimulation.spawnCube,
-      resetCubes: sortingSimulation.resetCubes,
+      resetCubes: () => {
+        clearPickCostEffects();
+        sortingSimulation.resetCubes();
+      },
       setSpeedMultiplier: (nextSpeedMultiplier) => {
         speedMultiplier = nextSpeedMultiplier;
       },
+      setCameraViewMode,
+      setCostParticlesEnabled: (enabled) => {
+        costParticlesEnabled = enabled;
+      },
+      setSoundEnabled: robotAudio.setEnabled,
+      showPickCostEffect,
     },
     cleanup,
   };

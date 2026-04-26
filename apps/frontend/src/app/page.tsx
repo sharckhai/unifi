@@ -26,7 +26,7 @@ import {
 import { RobotScene } from "@/components/RobotScene";
 import { ROBOT_COLOR_THEMES } from "@/components/robot-scene/sceneSetup";
 import type { SortedCubeEvent } from "@/components/RobotScene";
-import type { RobotColorTheme } from "@/components/robot-scene/types";
+import type { PickCostEffectPayload, RobotColorTheme } from "@/components/robot-scene/types";
 
 const telemetryData = [
   { label: "Pick 01", wear: 0.78, wearCost: 0.0058, energy: 0.005, capital: 0.0062, maintenance: 0.0038 },
@@ -173,9 +173,12 @@ function useAnimatedNumber(targetValue: number, durationMs = 520) {
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      animatedValueRef.current = targetValue;
-      setAnimatedValue(targetValue);
-      return undefined;
+      const frameId = requestAnimationFrame(() => {
+        animatedValueRef.current = targetValue;
+        setAnimatedValue(targetValue);
+      });
+
+      return () => cancelAnimationFrame(frameId);
     }
 
     const startValue = animatedValueRef.current;
@@ -399,10 +402,9 @@ export default function Home() {
   const [liveTelemetryData, setLiveTelemetryData] = useState<LiveTelemetryPoint[]>([]);
   const [lastRequest, setLastRequest] = useState<SortedCubeEvent | null>(null);
   const [lastApiResult, setLastApiResult] = useState<LiveWearCostResponse | null>(null);
+  const [pickCostEffect, setPickCostEffect] = useState<PickCostEffectPayload | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const latestRequestIdRef = useRef(0);
-  const selectedTheme =
-    ROBOT_COLOR_THEMES.find((theme) => theme.id === selectedRobotTheme) ?? ROBOT_COLOR_THEMES[0];
 
   const handleCubeSorted = useCallback((event: SortedCubeEvent) => {
     const requestId = latestRequestIdRef.current + 1;
@@ -433,6 +435,11 @@ export default function Home() {
 
         if (latestRequestIdRef.current === requestId) {
           setLastApiResult(response);
+          setPickCostEffect({
+            cubeId: response.cubeId,
+            kind: response.kind,
+            totalCostEur: calculateAllInCost(response),
+          });
         }
       })
       .catch((error: unknown) => {
@@ -453,18 +460,29 @@ export default function Home() {
     [liveTelemetryData.length, visibleTelemetryData.length],
   );
   const liveSparklineData = useMemo(() => {
-    let runningRevenue = 0;
-
-    return liveTelemetryData
-      .map((point, index) => {
-        runningRevenue += calculatePayPerPickRevenue(point);
+    const accumulated = liveTelemetryData.reduce<{
+      runningRevenue: number;
+      points: Array<LiveTelemetryPoint & { dailyRevenue: number }>;
+    }>(
+      (current, point, index) => {
+        const runningRevenue =
+          current.runningRevenue + calculatePayPerPickRevenue(point);
 
         return {
-          ...point,
-          dailyRevenue: (runningRevenue / (index + 1)) * DAILY_PICK_PROJECTION,
+          runningRevenue,
+          points: [
+            ...current.points,
+            {
+              ...point,
+              dailyRevenue: (runningRevenue / (index + 1)) * DAILY_PICK_PROJECTION,
+            },
+          ],
         };
-      })
-      .slice(-LIVE_CHART_WINDOW_SIZE);
+      },
+      { runningRevenue: 0, points: [] },
+    );
+
+    return accumulated.points.slice(-LIVE_CHART_WINDOW_SIZE);
   }, [liveTelemetryData]);
   const costPerPick = lastApiResult ? calculateAllInCost(lastApiResult) : 0;
   const totalRevenue = liveTelemetryData.reduce(
@@ -480,11 +498,6 @@ export default function Home() {
   const lastPickNumber = lastRequest?.totalSorted ?? sortedPickCount;
   const lastWeightLabel = lastRequest ? `${lastRequest.weightKg.toFixed(0)} kg` : "-";
   const lastDurationLabel = lastRequest ? `${lastRequest.sortDurationSeconds.toFixed(2)} s` : "-";
-  const lastCubeLabel = lastRequest
-    ? lastRequest.kind === "heavy"
-      ? "red cube"
-      : "green cube"
-    : "waiting for first pick";
 
   return (
     <div className="h-screen w-screen overflow-hidden p-3 font-sans text-[#172033] lg:p-5">
@@ -525,11 +538,9 @@ export default function Home() {
 
         <section className="z-10 grid min-h-0 flex-1 gap-3 p-3 lg:grid-cols-[1.55fr_0.72fr] lg:p-4">
           <section id="robot" className="relative min-h-0 overflow-hidden border border-blue-500/20 bg-white/35">
-            <div className="absolute left-4 top-4 z-20 hidden border border-blue-500/20 bg-[#f7f5ef]/80 px-3 py-2 font-mono text-[10px] text-blue-700 lg:block">
-              {selectedTheme.label.toUpperCase()} / LIVE-ASSET
-            </div>
             <RobotScene
               onCubeSorted={handleCubeSorted}
+              pickCostEffect={pickCostEffect}
               robotTheme={selectedRobotTheme}
               className="h-full border-0 bg-none bg-transparent shadow-none"
               canvasClassName="h-full w-full"
