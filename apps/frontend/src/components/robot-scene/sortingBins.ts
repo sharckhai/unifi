@@ -199,6 +199,7 @@ export function createSortingSector(bin: SortingBin) {
 
   const label = createLabelSprite(bin.label, color);
   label.position.copy(bin.position).setY(SORTING_WALL_HEIGHT + 0.52);
+  label.userData.isSortingBinLabel = true;
   group.add(label);
 
   return group;
