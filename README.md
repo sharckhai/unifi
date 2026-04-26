@@ -1,460 +1,316 @@
 # UNIFI
 
-> *Visa-Netzwerk für Robotics-as-a-Service.*
+> *The Visa network for Robotics-as-a-Service.*
 
-UNIFI übersetzt Roboter-Telemetrie in bankenfähige Finanzdaten. Drei Kernprodukte:
+UNIFI turns robot telemetry into bank-grade financial data. Three core products:
 
-1. **Abrechnungs-Engine** — exakte Kosten pro Pick (Energie, Verschleiß, Kapital, Wartung).
-2. **Robot Credit Score** — dynamischer Restwert & RUL aus Live-Nutzungsdaten.
-3. **RaaS-Konfigurator** — Pay-per-Pick-Angebote inkl. IFRS-16-Bilanzwirkung.
+1. **Billing engine** — exact cost per pick (energy, wear, capital, maintenance).
+2. **Robot Credit Score** — dynamic residual value & remaining useful life from live usage.
+3. **RaaS configurator** — pay-per-pick offers including IFRS-16 balance-sheet impact.
 
-Hackathon-Prototyp. Single-Source-of-Truth fürs Konzept: [`docs/idea-concept/unifi_konzept_v2.md`](docs/idea-concept/unifi_konzept_v2.md).
+Hackathon prototype. Concept source-of-truth: [`docs/idea-concept/unifi_konzept_v2.md`](docs/idea-concept/unifi_konzept_v2.md).
 
-## Repo-Struktur
-
-```
-apps/backend/    Python 3.12, FastAPI, LightGBM — UCS-Schema + Wear-Rate-Modell
-apps/frontend/   Next.js (noch leer)
-data/            Datasets + Datasheets — gitignored, lokal
-docs/            Konzept, Research, Entscheidungen
-```
+---
 
 ## Quickstart
+
+**Backend** (Python 3.12, FastAPI, LightGBM):
 
 ```bash
 cd apps/backend
 uv sync
-
-# 1. Roh-CSVs → gefensterte UCS-Features
-uv run python -m unifi.scripts.build_dataset
-
-# 2. + Wear-Rate-Labels (Physik-Formel)
-uv run python -m unifi.scripts.make_labels
-
-# 3. + LightGBM trainieren
-uv run python -m unifi.scripts.train_wear_rate
-
-# 4. API
-uv run uvicorn unifi.main:app --reload
-# → POST /wear-rate/predict mit UcsFeatures-Body
+uv run uvicorn unifi.main:app --reload    # → http://localhost:8000
 ```
 
-## Datensatz
+**Frontend** (Next.js 15, Three.js, Recharts):
 
-**NIST UR5-Degradation** (lokal unter `data/nist-ur5-degradation/`, `.gitignored`).
-
-- **18 CSV-Files**, 73 Sensor-Felder pro File, **125 Hz Sampling**, ~50–85 s pro File.
-- **6 Konfigurationen × 3 Runs**: Payload {16 lb, 45 lb} × Speed {fullspeed, halfspeed} × Coldstart-Variante (nur 45 lb).
-- **Sensoren** pro Joint J1–J6: Position, Velocity, Current, Torque, Temperatur. Plus TCP-Pose, TCP-Wrench, ROBOT_TIME.
-- **Keine** Failure- oder RUL-Labels.
-- **Quelle:** NIST Engineering Laboratory — Robotic Performance Datasets ([data.nist.gov](https://data.nist.gov)). Offizielles UR5-Datenblatt liegt im Bundle (`data/nist-ur5-degradation/datasheets/UR5_3rd-party_datasheet.pdf`).
-- **Lizenz:** vermutet U.S.-Government-Public-Domain (NIST), formale Verifikation ausstehend.
-
-Detail-Evaluation siehe [`docs/research/datasets.md`](docs/research/datasets.md).
-
-## UCS — Unifi Certification Standard
-
-Einheitliches Schema für Roboter-Telemetrie und -Datasheets. Drei Pydantic-Ebenen in [`apps/backend/src/unifi/ucs/schema.py`](apps/backend/src/unifi/ucs/schema.py):
-
-### `UcsDatasheet` — Roboter-Stammdaten (Normalisierungs-Basis)
-
-```
-model, manufacturer, robot_class       # cobot | scara | parallel | gantry
-cost_new_eur, nominal_picks_lifetime   # für Kosten-Engine
-rated_current_a, rated_torque_nm       # Joint-Nennwerte
-rated_cycle_time_s, rated_payload_kg
-nominal_duty_cycle, maintenance_cost_pct_per_year
+```bash
+cd apps/frontend
+npm install
+npm run dev                                # → http://localhost:3000
 ```
 
-### `UcsTelemetrySample` — Zeitreihen-Probe (vor Aggregation)
+**Rebuild the ML pipeline** (optional — the trained model is committed under `apps/backend/artifacts/`):
 
-```
-t_s, joint_currents, joint_positions, joint_velocities,
-joint_temperatures, joint_torques?, tcp_force?, tcp_pose?
-```
-
-Joint-Listen sind so lang wie der Roboter Joints hat (UR5: 6, SCARA: 4) — UCS ist agnostisch zur DOF.
-
-### `UcsFeatures` — dimensionsloser Modell-Input pro Window
-
-12 Felder (10 numerisch + 2 kategorial), autoritativ via `UcsFeatures.feature_order()`. Reihenfolge wird neben dem Booster persistiert in `feature_schema.json`.
-
-## Verschleiß-Definition + Label-Generierung
-
-Es gibt keinen direkten Verschleiß-Sensor. Wir konstruieren Labels physikalisch motiviert pro Window:
-
-```
-load_factor    = (motor_current_max / rated_current)^α      # Basquin (Materialermüdung)
-thermal_factor = exp(k · (joint_temp_max − T_ref))          # Arrhenius (chemische Alterung)
-cycle_factor   = rated_cycle_time / observed_cycle_time     # Zyklusrate
-
-multiplier_raw = load_factor · thermal_factor · cycle_factor
-multiplier     = multiplier_raw / median(multiplier_raw on warm-fullspeed-light-Train-Windows)
+```bash
+cd apps/backend
+uv run python -m unifi.scripts.build_dataset      # raw CSVs → windowed UCS features
+uv run python -m unifi.scripts.make_labels        # + physics-derived wear-rate labels
+uv run python -m unifi.scripts.train_wear_rate    # + LightGBM training
 ```
 
-**Konstanten:** α = 2.5 (Standard für Stahl-Lager), k = 0.05/K (Verdopplung pro 10 K), T_ref = 30 °C, T_max = 80 °C.
+The Deal-Desk agent needs a Gemini API key in `apps/backend/.env`:
 
-**Verankerung:** Median(`warm × fullspeed × 16 lb × Train`) ≡ **1.0×** — „Normalbetrieb" als Referenzpunkt. Anker ausschließlich auf Train-Rows, **nicht** Val/Holdout (kein Leakage).
+```
+GOOGLE_API_KEY=…
+```
 
-**Ergebnis-Verteilung der Labels** (alle Splits, 605 Windows):
-- p05 = 0.10×, p50 = 0.71×, p95 = 5.59×
-- Spreizung: 0.3× (Leichtbetrieb) bis ~5× (Schwerlast-Peaks)
+---
 
-**Was bewusst nicht ins Label fließt:** Anomalien, mechanische Defekte, Steuerungsfehler. Das ist Hersteller-/SLA-Territorium und würde Kunden für Probleme bestrafen, die nicht ihre sind.
+## Repo structure
 
-Volle Begründung der Konstanten und Beispielwerte: [`docs/research/wear-rate-training.md`](docs/research/wear-rate-training.md).
+```
+apps/
+├── backend/
+│   └── src/unifi/
+│       ├── main.py                  # FastAPI app + lifespan (loads the booster)
+│       ├── api/routes/              # health, wear_rate, cost_per_pick, simulate,
+│       │                            # residual, deal_desk
+│       ├── ucs/                     # UCS schema (datasheet, telemetry, features)
+│       │   ├── schema.py
+│       │   └── normalizer.py        # raw telemetry → dimensionless features
+│       ├── models/wear_rate.py      # LightGBM train / load / predict
+│       ├── cost/engine.py           # 4-component cost model + pricing stack
+│       ├── residual/                # residual-value engine + live accumulator
+│       ├── simulator/               # holdout sampler + scaling for the live demo
+│       │   ├── sampler.py
+│       │   ├── scaling.py
+│       │   └── shap.py
+│       ├── deal_desk/               # Gemini agent
+│       │   ├── agent.py
+│       │   ├── tools.py             # 5 tools the agent can call
+│       │   ├── catalog.py
+│       │   └── schema.py
+│       ├── data/                    # NIST UR5 loader + windowing
+│       ├── labels/physics.py        # Basquin × Arrhenius × cycle wear formula
+│       └── scripts/                 # build_dataset, make_labels, train_wear_rate
+│   ├── artifacts/                   # trained booster + train_stats + parquet
+│   └── tests/                       # pytest suite (~150 tests)
+└── frontend/
+    └── src/
+        ├── app/                     # Next.js routes: /, /deal-desk, /robots, /trophies
+        ├── components/robot-scene/  # Three.js UR5 rig + pick animation
+        └── lib/
+            ├── dealDeskStream.ts    # SSE consumer for /deal-desk/stream
+            └── fleetStorage.ts
+data/                                # NIST UR5 CSVs + datasheets — gitignored
+docs/                                # concept, research, decisions
+```
 
-## Dimensionslosigkeit — der Schlüssel zur Roboter-Portabilität
+---
 
-Das ML-Modell sieht **niemals** rohe Sensorwerte. Jeder Sensor wird durch eine Datasheet-Konstante derselben Einheit geteilt:
+## Backend (FastAPI)
 
-| Roher Sensor (Einheit) | / Datasheet-Nenner | UCS-Feature |
+App entry: [`apps/backend/src/unifi/main.py`](apps/backend/src/unifi/main.py). The lifespan loads the LightGBM booster once at startup and warms the holdout sampler.
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/health` | GET | Liveness + `model_loaded: bool` |
+| `/wear-rate/predict` | POST | `UcsFeatures` → wear-rate multiplier |
+| `/cost-per-pick` | POST | Datasheet + multiplier → cost breakdown |
+| `/cost-per-pick/from-features` | POST | One-shot: features → wear-rate → cost |
+| `/simulate/pick` | POST | Sample a pick, run model, update live state |
+| `/simulate/reset` | POST | Reset the live robot accumulator |
+| `/residual/value` | POST | Static residual value |
+| `/residual/live` | GET | Current state of the simulated robot |
+| `/residual/fleet` | GET | Aggregated fleet view (seeded) |
+| `/deal-desk/run` | POST | PDF upload → offer (sync) |
+| `/deal-desk/run-from-path` | POST | Local PDF path → offer (sync) |
+| `/deal-desk/stream` | POST | PDF upload → SSE stream (steps + final offer) |
+
+---
+
+## Frontend (Next.js)
+
+| Route | Purpose |
+|---|---|
+| `/` | Live demo: 3D UR5 scene, telemetry charts, per-pick cost breakdown, residual value |
+| `/deal-desk` | PDF inquiry upload → streaming agent run → generated offer |
+| `/robots` | Robot catalogue browser |
+| `/trophies` | Side panel for completed inquiries |
+
+The 3D scene under `components/robot-scene/` runs a Three.js rig with cycle animation; charts use Recharts. Streaming agent events are parsed by `lib/dealDeskStream.ts`.
+
+---
+
+## ML model — wear-rate predictor
+
+A **LightGBM regressor** trained on real **NIST UR5 degradation data** predicts a single scalar: the wear-rate multiplier on the robot's nominal wear rate. The output is clipped to `[0.3, 5.0]`.
+
+The model never sees raw sensor values. Every input is **dimensionless** — each sensor is divided by a datasheet constant of the same unit:
+
+| Raw sensor (unit) | / datasheet term | UCS feature |
 |---|---|---|
 | `actual_current` (A) | `rated_current_a` | `motor_load_ratio` |
 | `target_torque` (Nm) | `rated_torque_nm` | `torque_load_ratio` |
 | `actual_velocity` (rad/s) | `nominal_joint_velocity` | `velocity_intensity` |
-| `joint_temp` (°C) | `(T − T_ref) / (T_max − T_ref)` | `temp_delta_normalized` |
+| `joint_temperature` (°C) | `(T − T_ref) / (T_max − T_ref)` | `temp_delta_normalized` |
 | `observed_cycle_time` (s) | `rated_cycle_time_s` | `cycle_intensity` |
-| TCP-Force (N) | `rated_payload_kg · g` | `tcp_force_norm` |
+| TCP force (N) | `rated_payload_kg · g` | `tcp_force_norm` |
 
-**Warum:** `5 A` bedeutet auf einem UR5 (Nennstrom 6 A) 83 % Auslastung — entspannt. Auf einem SCARA (Nennstrom 3.5 A) bedeutet dasselbe `5 A` 143 % — Überlast. Roher Wert ist ohne Roboter-Kontext nutzlos. Verhältnis-Wert ist universell.
+`5 A` on a UR5 (rated 6 A) is 83 % — relaxed. The same `5 A` on a SCARA (rated 3.5 A) is 143 % — overload. A raw value is meaningless without a datasheet; a ratio is universal.
 
-**Konsequenz:** Derselbe vor-trainierte Booster scoret jeden fremden Roboter, sobald sein Datasheet auf das UCS-Schema gemappt ist. Kein Re-Training, kein Integrationsprojekt — der UCS-Drop-in.
+**Why this matters for portability.** The same booster scores any robot the moment its datasheet maps onto the UCS schema — no retraining, no integration project. As more field data arrives, the wear-formula constants (α, k) recalibrate to ground-truth wear, and the model's predictions improve across robot classes.
 
-## Modell-Architektur
+Code: [`apps/backend/src/unifi/models/wear_rate.py`](apps/backend/src/unifi/models/wear_rate.py), schema in [`apps/backend/src/unifi/ucs/schema.py`](apps/backend/src/unifi/ucs/schema.py).
 
-**LightGBM-Regressor** auf `log(wear_rate_multiplier)` (RMSE-Loss).
+---
 
-- **Input:** 12-dim `UcsFeatures`-Vektor (10 dimensionslose Floats + 2 kategoriale Felder `thermal_state`, `payload_class`).
-- **Output:** Skalar — Wear-Rate-Multiplier ∈ [0.3×, 5.0×] (geclippt nach `exp(prediction)`).
-- **Hyperparameter** (klein wegen ~450 Train-Rows):
-  - `num_leaves=15`, `learning_rate=0.05`, `n_estimators=300`
-  - `min_data_in_leaf=20`, `feature_fraction=0.9`, `bagging_fraction=0.9`
-  - `early_stopping_rounds=30` auf Val-RMSE
-- **Categoricals:** integer-encoded (cold=0/warm=1, light=0/heavy=1), LightGBM nutzt sie via `categorical_feature`.
+## Financial model — datasheet → euros
 
-Code: [`apps/backend/src/unifi/models/wear_rate.py`](apps/backend/src/unifi/models/wear_rate.py).
+The wear-rate multiplier is the bridge between physics and finance. The cost engine ([`apps/backend/src/unifi/cost/engine.py`](apps/backend/src/unifi/cost/engine.py)) extracts mechanical and economic constants from the **UCS datasheet** and turns them into euros per pick.
 
-**Warum LightGBM und nicht NN?** Bei ~450 Train-Rows und ~12 Features ist Boosting effizienter und gut erklärbar (SHAP-fähig). Ein NN wäre overkill.
-
-**Warum `log(multiplier)` als Target?** Sichert Positivität bei der Inferenz (`exp(pred)`), passt zur log-normalen Verteilung der Labels.
-
-## Trainings-Statistiken
-
-Aus [`apps/backend/artifacts/train_stats.json`](apps/backend/artifacts/train_stats.json) (Modell-Version `fae1da25`):
+**Datasheet inputs** (per robot model):
 
 ```
-n_train          452 Windows
-n_val            114 Windows
-val_rmse_log    0.069     (≈ 7 % multiplikativer Fehler im Mittel)
-val_rmse        0.481     (auf Multiplier-Skala)
-
-Predicted multiplier quantiles (Val):
-  p05  0.30   p50  0.85   p95  5.00
+cost_new_eur                    rated_current_a
+nominal_picks_lifetime          rated_torque_nm
+power_consumption_w             rated_cycle_time_s
+maintenance_cost_pct_per_year   rated_payload_kg
+nominal_duty_cycle              nominal_lifetime_years
 ```
 
-**Bucket-Vergleich Predicted (Val) ↔ Label-Mean (Val):**
-
-| Bucket | Label | Predicted | Δ |
-|---|---|---|---|
-| light × halfspeed × warm | 0.42 | 0.49 | +17 % |
-| light × fullspeed × warm | 0.99 | 0.97 | −2 % |
-| heavy × halfspeed × warm | 1.05 | 1.05 | 0 % |
-| heavy × halfspeed × cold | 0.88 | 0.94 | +7 % |
-| heavy × fullspeed × warm | 2.79 | 2.39 | −14 % |
-| heavy × fullspeed × cold | 2.67 | 2.33 | −13 % |
-
-Alle Buckets innerhalb ±20 %. Heavy×fullspeed wird leicht unterschätzt — `CLIP_HI=5.0` schneidet die Tails ab. Monotonie heavy>light und fullspeed>halfspeed durchgehend intakt.
-
-**Wichtige Caveat:** Die Labels sind eine **physikalisch motivierte Baseline**, keine Ground-Truth-Wear-Messung. Mit echten Felddaten kalibrieren sich α und k nach (Network-Effekt-Stufe 2). Ohne Felddaten ist die Baseline die Baseline — Konstanten sind plausibel, nicht datengestützt.
-
-## API
-
-`POST /wear-rate/predict`
-
-```json
-// Request: UcsFeatures-Body
-{
-  "motor_load_ratio_max": 0.54, "motor_load_ratio_mean": 0.12,
-  "motor_load_ratio_std": 0.05, "cycle_intensity": 1.0,
-  "velocity_intensity_max": 0.32, "torque_load_ratio_max": 0.20,
-  "temp_delta_normalized_max": 0.12, "temp_delta_normalized_mean": 0.03,
-  "tcp_force_norm": 1.01, "tracking_error_rms": 0.009,
-  "thermal_state": "warm", "payload_class": "light"
-}
-
-// Response
-{
-  "wear_rate_multiplier": 1.02,
-  "model_version": "fae1da25",
-  "clipped": false
-}
-```
-
-`GET /health` meldet Status + `model_loaded: bool`.
-
-## Trainings-Pipeline und Finanz-Werte (Provenance)
-
-Konsolidierter Überblick: was im Datensatz steckt, was wir genutzt haben, wie genau das Modell ist und wie wir aus dem Datasheet die Finanz-Werte ableiten.
-
-### NIST-Datensatz — was tatsächlich drin ist
-
-- **18 CSV-Files** (`data/nist-ur5-degradation/ur5testresult*_flat.csv`), jede ~50–85 s Sequenz bei 125 Hz Sampling → ~6.000–10.000 Telemetrie-Samples pro File.
-- **Konfigurations-Matrix:** Payload {16 lb / 7.26 kg, 45 lb / 20.41 kg} × Speed {fullspeed, halfspeed} × Coldstart {ja (nur 45 lb), nein} × 3 Wiederholungen.
-- **Sensoren pro File:** 73 Spalten — pro Joint J1–J6: `actual_current_J*`, `actual_position_J*`, `actual_velocity_J*`, `target_torque_J*`, `joint_temperature_J*`. Plus TCP-Pose und TCP-Force.
-- **Wichtig:** NIST hat den UR5 absichtlich **über Spec** gefahren (16 lb = 1.45× rated_payload, 45 lb = 4.08× rated_payload), um in vertretbarer Zeit messbaren Verschleiß zu erzeugen. Kein In-Spec-Datapoint im Set.
-- **Keine Failure-Labels, kein RUL** — wir konstruieren Wear-Rate-Labels selbst (siehe oben).
-
-### Split: Train / Val / Holdout
-
-`build_dataset.py` fenstert alle 18 Files in 2 s-Windows (≈ 1 Cycle bei UR5-rated 2 s) → **605 Windows total**. Aufteilung:
-
-| Split | Anzahl | Quelle |
-|---|---|---|
-| `holdout` | 27 | gesamtes File `ur5testresultfullspeedpayload16lb3_flat.csv` zurückgehalten — leichter Lastpfad, fullspeed, Run 3, kein Coldstart. Wird **nicht** für Training genutzt, dient als Source-Frame für `/simulate/pick`. |
-| `train` | 462 | rest, 80 % stratifiziert nach `payload × speed × coldstart` |
-| `val` | 116 | rest, 20 % stratifiziert |
-
-**Filter-Stack auf dem Holdout** (`unifi/simulator/sampler.py`):
-
-| Filter | Schwelle | Begründung | Drops |
-|---|---|---|---|
-| Stillstand | `velocity_intensity_max ≥ 0.05` | Erste Windows jedes Files enthalten Roboter-Stillstand vor Cycle-Beginn — würden Mean nach unten ziehen. | 5 |
-| Peak-Last | `motor_load_ratio_max < 0.92` | Spitzenmomente (RMS-Strom ≈ rated_current) im 16 lb-Source-Frame, der schon am rated_payload (5 kg) operiert. Würden nach Re-Normalisierung auf größere Pick-Gewichte garantiert den Wear-Cap 5.0 reißen und den Demo-Chart durch geclippte Outlier dominieren. | 1 |
-
-Holdout post-filter: **N = 21 Windows**.
-
-### Modell-Genauigkeit (Stand `wear_rate_lgbm.txt`, Version `bcd71ad2`)
+**Four cost components** per pick:
 
 ```
-n_train         462 Windows
-n_val           116 Windows
-val_rmse_log    0.081     (≈ 8 % multiplikativer Fehler im log-Space)
-val_rmse        0.757     (auf Multiplier-Skala, größter Anteil aus heavy-fullspeed-Tail)
-
-Predicted multiplier quantiles (Val):
-  p05  0.30 (Floor)   p50  0.97   p95  5.00 (Cap)
-```
-
-**Was die Bucket-Means uns sagen** (Predicted, Val): das Modell reproduziert die Anker-Logik — `light × fullspeed × warm` ≈ 1.34, `heavy × fullspeed × warm` ≈ 3.37, Verhältnis ≈ 2.5×. NIST-empirisch wäre 2.13×. Etwas zu steil, Modell überschätzt schwere Picks leicht (≈ 15 %).
-
-**Floor 0.3 / Cap 5.0:** schützt gegen LightGBM-Extrapolation außerhalb des Train-Daten-Bereichs (Train-Multiplier-Quantile p05 = 0.10, p95 = 5.59). Demo-Werte zeigen ehrlich `clipped: bool` im Endpoint-Response.
-
-### Wie kommen die Finanz-Werte zustande?
-
-Cost-per-Pick wird aus dem **Datasheet** plus **Operating-Profile** und **Modell-Output** berechnet — keine hard-codierten Preise.
-
-**Vier Cost-Komponenten** ([`unifi/cost/engine.py`](apps/backend/src/unifi/cost/engine.py)):
-
-```
-energy_eur      = power_w / 1000 · motor_load_ratio · observed_cycle_time_s · electricity_price / 3600
+energy_eur      = power_w / 1000 · motor_load_ratio · cycle_time_s · electricity_price / 3600
 wear_eur        = cost_new_eur / nominal_picks_lifetime · wear_rate_multiplier
 capital_eur     = cost_new_eur · interest_rate_per_year / nominal_picks_lifetime
 maintenance_eur = cost_new_eur · maintenance_cost_pct_per_year / picks_per_year
 total_eur       = sum
 ```
 
-| Term | Quelle |
-|---|---|
-| `power_w` | `UcsDatasheet.power_consumption_w` (UR5: 150 W), Fallback Klassen-Default |
-| `cost_new_eur` | `UcsDatasheet.cost_new_eur` (UR5: 35.000 €) |
-| `nominal_picks_lifetime` | `UcsDatasheet.nominal_picks_lifetime` (UR5: 30 Mio) |
-| `electricity_price` | `FinanceConfig.electricity_price_eur_per_kwh` (Default 0.30 €/kWh, DE 2025) |
-| `interest_rate_per_year` | `FinanceConfig.interest_rate_per_year` (Default 0.05) |
-| `maintenance_cost_pct_per_year` | `UcsDatasheet.maintenance_cost_pct_per_year` (UR5: 0.05) |
-| `picks_per_year` | `OperatingProfile.resolve_picks_per_year(datasheet)` — entweder direkt gesetzt, oder aus `(s/Jahr × duty_cycle / rated_cycle_time_s) × utilization_factor` (Default 0.16) |
-| `motor_load_ratio` | dynamisch aus dem skalierten UcsFeatures-Vektor des Picks |
-| `observed_cycle_time_s` | `pick_duration_s` aus dem Frontend-Request |
-| `wear_rate_multiplier` | LightGBM-Vorhersage |
+The ML model's wear-rate multiplier plugs directly into `wear_eur`. A multiplier of `2.5×` means heavy use is consuming 2.5 picks of nominal lifetime per actual pick, so the per-pick wear cost scales with it.
 
-**Pricing-Stack on top of Cost** ([`unifi/cost/engine.py:compute_customer_pricing`](apps/backend/src/unifi/cost/engine.py)):
+**Pricing stack** (`compute_customer_pricing`):
 
 ```
-production_cost = cost.total_eur
-service_fee     = production_cost · service_fee_pct      (Default 0.15 — UNIFI-Plattform-Gebühr)
-operator_margin = production_cost · operator_margin_pct  (Default 0.25 — Jonas-/Integrator-Marge)
+production_cost = total_eur
+service_fee     = production_cost · 0.15      # UNIFI platform fee
+operator_margin = production_cost · 0.25      # integrator margin
 customer_price  = production_cost + service_fee + operator_margin
 ```
 
-Default-Uplift: +40 % auf production_cost. UR5-Beispiel: production ≈ 0.0021 €/Pick → customer ≈ 0.0029 €/Pick.
-
-**Restwert-Engine** ([`unifi/residual/engine.py`](apps/backend/src/unifi/residual/engine.py)):
+**Residual value** ([`apps/backend/src/unifi/residual/engine.py`](apps/backend/src/unifi/residual/engine.py)):
 
 ```
-use_fraction      = cumulative_wear_pick_equivalents / nominal_picks_lifetime
-age_fraction      = age_years / nominal_lifetime_years   (UR5: 10, oder Klassen-Default)
-combined_decay    = max(use_fraction, age_fraction)      (clip 0..1)
-residual_floor    = cost_new · 0.05                       (Schrottwert)
-residual_primary  = cost_new · (1 − combined_decay)
-residual_value    = max(residual_floor, residual_primary)
+use_fraction     = cumulative_wear_pick_equivalents / nominal_picks_lifetime
+age_fraction     = age_years / nominal_lifetime_years
+combined_decay   = max(use_fraction, age_fraction)        # the faster clock wins
+residual_value   = max(cost_new · 0.05, cost_new · (1 − combined_decay))
 ```
 
-`max(use, age)` — die schnellere Uhr gewinnt: ein 10-Jahre-alter UR5 ist nicht 95 % wert auch wenn kaum genutzt; ein 1-Jahre-alter mit 80 % Verschleiß auch nicht.
+`max(use, age)` reflects reality: a 10-year-old UR5 isn't worth 95 % even if barely used, and a 1-year-old one with 80 % wear isn't worth 95 % either.
 
-### Sampling-Strategie für die Live-Demo
+---
 
-Die Demo soll bei gleichem `(component_weight_kg, pick_duration_s)`-Input
-deterministisch ähnliche Multiplikatoren liefern und nicht durch die
-natürliche Window-zu-Window-Varianz der realen NIST-Daten überlagert werden.
-Der `WindowSampler` arbeitet deshalb **synthetisch im Mean-Vector-Modus**
-([`unifi/simulator/sampler.py`](apps/backend/src/unifi/simulator/sampler.py)).
+## Deal-Desk agent
 
-#### 1. Statistische Charakterisierung des Holdouts (einmalig beim Startup)
+A Gemini agentic loop in [`apps/backend/src/unifi/deal_desk/agent.py`](apps/backend/src/unifi/deal_desk/agent.py) takes a customer PDF inquiry and returns a structured pay-per-pick offer. Max 12 tool turns, temperature 0.2, streamed to the frontend over Server-Sent Events at `POST /deal-desk/stream`.
 
-Sei \( H \subseteq \mathbb{R}^d \) der Holdout nach Filter-Stack (N = 21,
-d = 10 numerische Features). Für jedes numerische Feature \( i \in
-\{1,\dots,d\} \) (motor\_load\_max/mean/std, cycle\_intensity,
-velocity\_intensity\_max, torque\_load\_max, temp\_delta\_max/mean,
-tcp\_force\_norm, tracking\_error\_rms):
+The agent has **5 tools** ([`tools.py`](apps/backend/src/unifi/deal_desk/tools.py)):
+
+- **`analyze_pdf_inquiry`** — multimodal PDF parse. Extracts customer, weight mix, picks per month, cycle expectations into an `Inquiry` object.
+- **`get_robots`** — returns the candidate fleet (UR5, SCARA, …) with use-case hints. Must be called before any robot-specific tool.
+- **`get_robot_infos`** — full datasheet + suitability score + base fee + nominal picks/year for one robot. Sequencing-guarded behind `get_robots`.
+- **`get_pricing_history`** — runs the cost engine across a sweep of wear multipliers for a given weight class and cadence; returns a €/pick curve with median + range.
+- **`compare_leasing_and_unifi`** — base fee (utilisation-scaled) + pay-per-pick volume vs. classical leasing for a given fleet size and term; computes break-even volume and savings at different utilisation levels.
+
+The loop returns an `AgentResult` containing the final `Offer` (validated against a JSON schema), the raw model text, every tool call, and per-step traces for the live UI.
+
+---
+
+## Training details
+
+### Dataset
+
+**NIST UR5 degradation** (`data/nist-ur5-degradation/`, gitignored). 18 CSV files, ~50–85 s each at 125 Hz, 73 sensor channels (per-joint current, position, velocity, torque, temperature; plus TCP pose and TCP wrench). Configuration matrix: payload {16 lb, 45 lb} × speed {fullspeed, halfspeed} × coldstart {yes (45 lb only), no} × 3 repeats. NIST drove the UR5 deliberately above spec to produce measurable wear in tractable time. **No failure or RUL labels** — we synthesize wear-rate labels ourselves.
+
+Source: NIST Engineering Laboratory, [data.nist.gov](https://data.nist.gov). Detail evaluation in [`docs/research/datasets.md`](docs/research/datasets.md).
+
+### Wear-label construction
+
+There is no direct wear sensor. Labels are physics-motivated, computed per window:
 
 ```
-μ_i = (1/N) · Σ_{w ∈ H} x_i^(w)            ← arithmetisches Mittel
-σ_i = sqrt( (1/N) · Σ (x_i^(w) − μ_i)² )   ← Population-Std (ddof=0)
+load_factor    = (motor_current_max / rated_current)^α       # Basquin (material fatigue)
+thermal_factor = exp(k · (joint_temp_max − T_ref))           # Arrhenius (chemical aging)
+cycle_factor   = rated_cycle_time / observed_cycle_time      # cycle rate
+
+multiplier_raw = load_factor · thermal_factor · cycle_factor
+multiplier     = multiplier_raw / median(warm × fullspeed × 16 lb × Train windows)
 ```
 
-Für kategoriale Features (`thermal_state`, `payload_class`) wird der
-**Modus** verwendet: in unserem Holdout uniform `warm` und `light`.
+Constants: α = 2.5 (steel-bearing fatigue exponent), k = 0.05/K (doubling per 10 K), T_ref = 30 °C, T_max = 80 °C. Anchoring on `warm × fullspeed × 16 lb × Train` ≡ **1.0×** defines "normal operation"; the anchor uses train rows only — no leakage into val/holdout.
 
-| Feature | μ | σ |
+What is **deliberately excluded** from the label: anomalies, mechanical defects, controller faults. That belongs to the manufacturer/SLA — billing customers for it would punish them for problems that aren't theirs. Source: [`apps/backend/src/unifi/labels/physics.py`](apps/backend/src/unifi/labels/physics.py).
+
+### Split
+
+`build_dataset.py` cuts all 18 files into 2 s windows (≈ 1 cycle at UR5 rated 2 s) → **605 windows total**.
+
+| Split | Count | Source |
 |---|---|---|
-| motor\_load\_ratio\_max | 0.501 | 0.138 |
-| motor\_load\_ratio\_mean | 0.114 | 0.036 |
-| motor\_load\_ratio\_std | 0.046 | 0.009 |
-| velocity\_intensity\_max | 0.308 | 0.061 |
-| torque\_load\_ratio\_max | 0.245 | 0.092 |
-| tcp\_force\_norm | 1.052 | 0.228 |
-| temp\_delta\_normalized\_max | 0.120 | 0.001 |
-| temp\_delta\_normalized\_mean | 0.031 | 0.000 |
-| tracking\_error\_rms | 0.010 | 0.003 |
-| cycle\_intensity | 1.000 | 0.000 |
+| `holdout` | 27 | one full file (`ur5testresultfullspeedpayload16lb3_flat.csv`) held back as the live-demo source frame |
+| `train` | 462 | 80 % of the rest, stratified by `payload × speed × coldstart` |
+| `val` | 116 | 20 % of the rest, stratified |
 
-#### 2. Sampling pro `pop()` (deterministisch via Cursor)
+### Model stats
 
-Beim t-ten Pick mit Cursor-Index \( c_t \in \{0,\dots,L-1\} \), \( L = 100 \)
-(SYNTHETIC\_CYCLE\_LENGTH):
+From [`apps/backend/artifacts/train_stats.json`](apps/backend/artifacts/train_stats.json), model version `bcd71ad2`:
 
 ```
-rng_t = np.random.default_rng(base_seed + c_t)
-ε_i^(t) ~ N(0, 1)         ← Standard-Gauss, i.i.d. über Features
-                                                                                 
-            ┌ max(0, μ_i + α · σ_i · ε_i^(t))      falls Feature ≥ 0-Constraint
-x_i^(t) = ┤
-            └ μ_i + α · σ_i · ε_i^(t)               sonst (temp_delta_*)
+val_rmse_log     0.081     (≈ 8 % multiplicative error in log-space)
+val_rmse         0.757     (on the multiplier scale)
 
-c_{t+1} = (c_t + 1) mod L
+Predicted multiplier quantiles (val):
+  p05  0.30 (floor)   p50  0.97   p95  5.00 (cap)
 ```
 
-mit **α = 0.15** (`NOISE_SCALE` — 15 % der natürlichen Holdout-Std). Dieser
-Wert ist eng genug, dass die Multiplikator-Varianz für gleiche
-`(kg, dauer)`-Inputs klein bleibt (≈ 5–13 % CV), aber sichtbar genug für
-einen lebendigen Frontend-Chart.
+Hyperparameters (small because of ~450 train rows): `num_leaves=15`, `learning_rate=0.05`, `n_estimators=300`, `min_data_in_leaf=20`, `feature_fraction=0.9`, `bagging_fraction=0.9`, `early_stopping_rounds=30`. Target is `log(wear_rate_multiplier)` — guarantees positivity at inference (`exp(pred)`) and matches the log-normal shape of the labels. Categoricals (`thermal_state`, `payload_class`) are integer-encoded and passed via `categorical_feature`.
 
-Eigenschaften:
+The bucket means in `train_stats.json` confirm monotonicity: `heavy > light` and `fullspeed > halfspeed` across all thermal states. The heavy-fullspeed-warm bucket sits around `3.37×`, light-halfspeed-cold around `0.53×` — a roughly 6× spread.
 
-- **Deterministisch:** `reset()` setzt `c_t = 0`, die anschließende
-  Pick-Sequenz reproduziert sich Bit-genau, weil jedes RNG-Seed nur vom
-  Cursor abhängt.
-- **Marginal-konsistent:** der erwartete Sample-Mean konvergiert für
-  L → ∞ gegen \( μ_i \), die Sample-Std gegen \( α · σ_i \).
-- **Unkorreliert über Features:** kein Cholesky/Copula-Schritt — wir
-  nehmen die Feature-Achsen als unabhängig an. Empirisch im Holdout
-  ist die Korrelationsstruktur schwach (max |ρ| ≈ 0.4 zwischen
-  motor\_load und tcp\_force), die Vereinfachung verändert die
-  Demo-Multiplikatoren um < 5 %.
+**Caveat.** The labels are a physics-motivated baseline, not ground-truth wear measurements. Real field data lets α and k recalibrate (network-effect stage 2). Until then, the constants are plausible, not data-driven.
 
-#### 3. Live-Skalierung im Betrieb (`renormalize`)
+### Sampling for the live demo
 
-Der Sample \( x^{(t)} \) liegt im Source-Frame (16 lb / 7.26 kg, fullspeed,
-2 s Cycle). `renormalize()`
-([`unifi/simulator/scaling.py`](apps/backend/src/unifi/simulator/scaling.py))
-rechnet ihn auf den vom Frontend gelieferten Pick um:
+The demo needs the same `(component_weight_kg, pick_duration_s)` input to produce stable, deterministic multipliers without being drowned out by raw window-to-window noise. The `WindowSampler` ([`apps/backend/src/unifi/simulator/sampler.py`](apps/backend/src/unifi/simulator/sampler.py)) runs in **synthetic mean-vector mode**:
 
-Definiere die Verhältnisse:
+1. **Filter the holdout** — drop idle windows (`velocity_intensity_max < 0.05`) and peak-current windows (`motor_load_ratio_max ≥ 0.92`). N = 21.
+2. **Characterize at startup** — for each numeric feature compute `μ_i` and `σ_i` over those 21 windows. For categoricals (`thermal_state`, `payload_class`) take the mode.
+3. **Sample per pick** — cursor-seeded `rng_t = default_rng(base_seed + cursor)` for determinism, then
 
-```
-r_m = component_weight_kg / source_payload_kg     (Mass-Ratio)
-r_τ = source_cycle_time_s / pick_duration_s       (Duration-Ratio)
+```python
+ε ~ N(0, 1)
+x_i = max(0, μ_i + α · σ_i · ε)        # α = 0.15 (15 % of natural std)
 ```
 
-mit `source_payload_kg = 16 · 0.45359237 = 7.26 kg` und
-`source_cycle_time_s = SPEED_CYCLE_FACTOR['fullspeed'] · datasheet.rated_cycle_time_s = 2.0 s`.
+The cursor wraps every 100 picks, so a `reset()` reproduces the sequence bit-for-bit.
 
-Skalierte Features (NIST-empirisch kalibrierte Exponenten):
-
-```
-β_L = 0.5    (LOAD_EXPONENT      — sublinear: Reibung/Idle-Strom dominant)
-β_T = 0.4    (TEMP_DELTA_EXPONENT — Joule-Heizung mit Wärmekapazität-Glättung)
-
-motor_load_ratio_*       ←  x · r_m^β_L
-torque_load_ratio_max    ←  x · r_m^β_L
-tcp_force_norm           ←  x · r_m^β_L
-velocity_intensity_max   ←  x · r_τ                  (linear in der Geschwindigkeit)
-cycle_intensity          ←  rated_cycle_time_s / pick_duration_s   (re-definiert, nicht skaliert)
-temp_delta_normalized_*  ←  clamp(x · r_m^β_T, [-0.5, 1.0])
-tracking_error_rms       ←  x  unverändert           (NIST: last-unabhängig, Exponent ~0.08)
-thermal_state            ←  unverändert (kategorial)
-payload_class            ←  "heavy" wenn component_weight_kg > rated_payload_kg, sonst "light"
-```
-
-Die Wahl `β_L = 0.5` ist der Mittelwert der NIST-empirischen Exponenten
-über die Last-Features (motor\_load\_max 0.28, motor\_load\_mean 0.40,
-torque ≈ 0, tcp\_force ≈ 0.03), gerundet auf eine ingenieurmäßig saubere
-Quadratwurzel-Skalierung. `β_T = 0.4` ist analog der Mittelwert der
-empirischen Temperatur-Exponenten (max 0.17, mean 0.61).
-
-#### 4. Interaktion zwischen Sampling und Skalierung
-
-Wegen der Linearität von `renormalize` in den Last-Features wird die
-absolute Noise-Std mit demselben Faktor skaliert wie der Mean:
+4. **Renormalize to the request** — [`scaling.py`](apps/backend/src/unifi/simulator/scaling.py) rescales the source-frame sample (16 lb / 7.26 kg, fullspeed, 2 s) to the requested `(component_weight_kg, pick_duration_s)`:
 
 ```
-Var(motor_load_scaled) = (r_m^β_L)² · Var(motor_load_sampled)
-                       = (r_m^β_L)² · (α · σ_motor_load)²
+load features (motor/torque/tcp_force) ·= mass_ratio^0.5
+temp features                          ·= mass_ratio^0.4
+velocity_intensity_max                 ·= duration_ratio
+cycle_intensity                        := rated_cycle_time_s / pick_duration_s
 ```
 
-Für 5 kg: \( r_m^{0.5} = \sqrt{0.69} = 0.83 \), für 10 kg:
-\( \sqrt{1.38} = 1.17 \) — die Feature-Noise wächst absolut mit Faktor
-**1.41×** beim Übergang von 5 kg auf 10 kg. Kombiniert mit der
-nichtlinearen LightGBM-Antwort (steiler im mittleren Multiplier-Bereich
-bei ~1.0×) und dem Floor-Cropping bei 0.3 (komprimiert die untere Tail
-der 5 kg-Verteilung) erklärt das die beobachtete Multiplikator-Std von
-~0.04 (5 kg) vs. ~0.13 (10 kg). Das Verhältnis ist physikalisch ehrlich
-— schwere Picks zeigen mehr Wear-Streuung als leichte.
+The exponents 0.5 and 0.4 are empirically averaged from NIST: load is sublinear in mass (friction & idle current dominate), temperature lags behind via heat capacity. See `simulator/scaling.py` and [`docs/research/wear-rate-training.md`](docs/research/wear-rate-training.md) for the full derivation.
 
-### Live-Path: vom Frontend-Slider bis zur Antwort
+### Live path: from frontend slider to response
 
 ```
 POST /simulate/pick { component_weight_kg, pick_duration_s }
-  ↓ WindowSampler.pop()           — synthetischer Sample aus N(μ, (α·σ)²),
-  ↓                                  μ/σ aus 21 gefilterten Holdout-Windows
-  ↓ renormalize(...)               — Last-Features × mass_ratio**0.5,
-  ↓                                  temp × mass_ratio**0.4,
-  ↓                                  velocity × duration_ratio
-  ↓ apply_random_emphasis(...)     — boost auf 1 zufälliges Feature (1.2–2.0×)
-  ↓                                  nur für SHAP-Demo, nicht für Multiplier
-  ↓ predict_one(rescaled)          — LightGBM-Vorhersage auf un-biased Features
-  ↓                                  Output clip [0.3, 5.0]
-  ↓ compute_cost_per_pick(...)     — Energy + Wear + Capital + Maintenance
-  ↓ compute_customer_pricing(...)  — + Service + Margin → customer_price
-  ↓ live_robot.increment(...)      — Restwert-Akkumulator
-  ↓ compute_residual_value(...)    — aktueller Restwert
-  ↓ top_k_contributions(biased)    — SHAP-Top-3 für Drill-down
-→ SimulatePickResponse mit allen drei Säulen + Pricing-Stack
+  ↓ WindowSampler.pop()           — synthetic sample from N(μ, (α·σ)²)
+  ↓ renormalize(...)               — load · mass_ratio^0.5, temp · mass_ratio^0.4,
+  ↓                                  velocity · duration_ratio
+  ↓ apply_random_emphasis(...)     — boost one feature for the SHAP demo only
+  ↓ predict_one(rescaled)          — LightGBM, output clipped to [0.3, 5.0]
+  ↓ compute_cost_per_pick(...)     — energy + wear + capital + maintenance
+  ↓ compute_customer_pricing(...)  — + service fee + operator margin
+  ↓ live_robot.increment(...)      — residual-value accumulator
+  ↓ compute_residual_value(...)    — current residual
+  ↓ top_k_contributions(biased)    — SHAP top-3 for the drill-down
+→ SimulatePickResponse
 ```
 
-Pipeline-Reproduktion:
+---
 
-```bash
-cd apps/backend
-uv run python -m unifi.scripts.build_dataset    # → ur5_windows.parquet
-uv run python -m unifi.scripts.make_labels      # → ur5_labeled.parquet
-uv run python -m unifi.scripts.train_wear_rate  # → wear_rate_lgbm.txt + train_stats.json
-uv run pytest -q                                 # 157 Tests grün
-```
+## Further reading
 
-## Weiterführend
-
-- [`docs/idea-concept/unifi_konzept_v2.md`](docs/idea-concept/unifi_konzept_v2.md) — autoritatives Konzept (Architektur, Demo-Flow, Pitch-Story).
-- [`docs/research/wear-rate-training.md`](docs/research/wear-rate-training.md) — operative Spezifikation (Verschleiß-Formel, UCS-Schema, Trainings-Setup im Detail).
-- [`docs/research/decisions.md`](docs/research/decisions.md) — Beschluss-Log (append-only).
-- [`apps/backend/README.md`](apps/backend/README.md) — Backend-Dev-Anleitung.
+- [`docs/idea-concept/unifi_konzept_v2.md`](docs/idea-concept/unifi_konzept_v2.md) — authoritative concept (architecture, demo flow, pitch story).
+- [`docs/research/wear-rate-training.md`](docs/research/wear-rate-training.md) — operational spec (wear formula, UCS schema, training setup in detail).
+- [`docs/research/decisions.md`](docs/research/decisions.md) — decision log (append-only).
+- [`apps/backend/README.md`](apps/backend/README.md) — backend dev guide.
