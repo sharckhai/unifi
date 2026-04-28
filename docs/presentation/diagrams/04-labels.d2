@@ -1,0 +1,71 @@
+vars: {
+  d2-config: {
+    layout-engine: dagre
+    pad: 40
+  }
+}
+
+direction: right
+
+classes: {
+  factor: {
+    style: {
+      fill: "#ffffff"
+      stroke: "#1f55ff"
+      stroke-width: 2
+      border-radius: 10
+      font-color: "#172033"
+    }
+  }
+  law: {
+    style: {
+      fill: "#f7f5ef"
+      stroke: "#172033"
+      stroke-width: 1
+      border-radius: 6
+      font-color: "#687385"
+      font-size: 11
+      italic: true
+    }
+  }
+  output: {
+    style: {
+      fill: "#1f55ff"
+      stroke: "#1f55ff"
+      font-color: "#ffffff"
+      border-radius: 12
+      font-size: 16
+      bold: true
+    }
+  }
+}
+
+load: "load_factor\n(I_max / I_rated)^α\n\nα = 2.5" { class: factor }
+load_law: "Basquin-Gesetz\nMaterialermüdung ∝ Last^α" { class: law }
+load_law -> load: { style.stroke-dash: 3 }
+
+thermal: "thermal_factor\nexp( k · (T_max − T_ref) )\n\nk = 0.05 · T_ref = 30 °C" { class: factor }
+thermal_law: "Arrhenius-Beziehung\nthermische Alterung exponentiell" { class: law }
+thermal_law -> thermal: { style.stroke-dash: 3 }
+
+cycle: "cycle_factor\nT_rated / T_observed\n\nT_rated = 2.0 s" { class: factor }
+cycle_law: "Zyklusrate\ndichtere Zyklen → mehr Stress" { class: law }
+cycle_law -> cycle: { style.stroke-dash: 3 }
+
+multiplier: "wear_rate_multiplier\n=  load · thermal · cycle" { class: output }
+
+anchor: "Anker-Normalisierung\nMedian( warm + fullspeed + light + Train ) ≡ 1.0×" {
+  class: law
+  style.font-size: 12
+}
+
+load -> multiplier
+thermal -> multiplier
+cycle -> multiplier
+multiplier -> anchor: "kalibrieren"
+
+(* -> *)[*].style: {
+  stroke: "#172033"
+  stroke-width: 2
+  font-color: "#172033"
+}

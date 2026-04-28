@@ -1,0 +1,79 @@
+vars: {
+  d2-config: {
+    layout-engine: dagre
+    pad: 40
+  }
+}
+
+direction: right
+
+classes: {
+  raw: {
+    style: {
+      fill: "#f7f5ef"
+      stroke: "#172033"
+      stroke-width: 1
+      font-color: "#172033"
+      border-radius: 4
+      font-size: 12
+    }
+  }
+  win: {
+    style: {
+      fill: "#ffffff"
+      stroke: "#1f55ff"
+      stroke-width: 2
+      font-color: "#172033"
+      border-radius: 10
+    }
+  }
+  agg: {
+    style: {
+      fill: "#1f55ff"
+      stroke: "#1f55ff"
+      font-color: "#ffffff"
+      border-radius: 6
+      font-size: 12
+      bold: true
+    }
+  }
+}
+
+raw_stream: "Roh-Telemetrie · 125 Hz · ~8 ms Tick" {
+  class: win
+
+  s1: "t₀" { class: raw }
+  s2: "t₁" { class: raw }
+  s3: "t₂" { class: raw }
+  s4: "..." { class: raw }
+  s5: "tₙ" { class: raw }
+  s1 -- s2 -- s3 -- s4 -- s5
+}
+
+window: "Sliding Window · 2 s · 250 Samples" { class: win }
+
+aggs: "7 Aggregate pro Feld" {
+  class: win
+  vCnt: "vCnt" { class: agg }
+  vMax: "vMax" { class: agg }
+  vMin: "vMin" { class: agg }
+  vMean: "vMean" { class: agg }
+  vStd: "vStd" { class: agg }
+  vTrend: "vTrend" { class: agg }
+  vFreq: "vFreq" { class: agg }
+}
+
+features: "UCS-Feature-Vektor\npro Fenster" {
+  class: win
+  style.fill: "#f7f5ef"
+}
+
+raw_stream -> window: "schneiden"
+window -> aggs: "aggregieren"
+aggs -> features: "stacken"
+
+(* -> *)[*].style: {
+  stroke: "#172033"
+  stroke-width: 2
+  font-color: "#172033"
+}

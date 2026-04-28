@@ -1,0 +1,86 @@
+vars: {
+  d2-config: {
+    layout-engine: dagre
+    pad: 40
+  }
+}
+
+direction: right
+
+classes: {
+  group: {
+    style: {
+      fill: "#ffffff"
+      stroke: "#1f55ff"
+      stroke-width: 2
+      border-radius: 12
+      font-color: "#172033"
+    }
+  }
+  field: {
+    style: {
+      fill: "#f7f5ef"
+      stroke: "#172033"
+      stroke-width: 1
+      border-radius: 6
+      font-color: "#172033"
+      font-size: 12
+    }
+  }
+  strat: {
+    style: {
+      fill: "#1f55ff"
+      stroke: "#1f55ff"
+      font-color: "#ffffff"
+      border-radius: 8
+      font-size: 13
+      bold: true
+    }
+  }
+}
+
+ur5: "NIST UR5 — Universal Robots Cobot" {
+  class: group
+  style.font-size: 18
+  style.bold: true
+
+  joints: "6 Joints · J1 – J6" {
+    class: group
+    actual_current: "actual_current_J{1..6}  [A]" { class: field }
+    actual_position: "actual_position_J{1..6}  [rad]" { class: field }
+    actual_velocity: "actual_velocity_J{1..6}  [rad/s]" { class: field }
+    target_torque: "target_torque_J{1..6}  [Nm]" { class: field }
+    joint_temp: "joint_temperature_J{1..6}  [°C]" { class: field }
+  }
+
+  tcp: "TCP-Pose & Wrench" {
+    class: group
+    pose: "tcp_position_{x,y,z,rx,ry,rz}" { class: field }
+    wrench: "tcp_force / tcp_torque {x,y,z}" { class: field }
+  }
+}
+
+scope: "Umfang" {
+  class: group
+  freq: "125 Hz Sampling" { class: field }
+  fields: "73 Sensor-Felder" { class: field }
+  files: "40 CSV · 406 MB" { class: field }
+  runs: "18 Konfigurationen × 3 Runs" { class: field }
+}
+
+strat: "Stratifikation" {
+  class: group
+  payload: "Payload\n16 lb / 45 lb" { class: strat }
+  speed: "Speed\nfull / half" { class: strat }
+  thermal: "Thermal\ncold / warm" { class: strat }
+  run_idx: "Run-Index\n1 / 2 / 3" { class: strat }
+}
+
+ur5 -> scope: "Schema"
+ur5 -> strat: "Variation"
+
+(* -> *)[*].style: {
+  stroke: "#172033"
+  stroke-width: 2
+  font-color: "#172033"
+}

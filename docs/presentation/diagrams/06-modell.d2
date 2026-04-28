@@ -1,0 +1,93 @@
+vars: {
+  d2-config: {
+    layout-engine: dagre
+    pad: 40
+  }
+}
+
+direction: right
+
+classes: {
+  feat: {
+    style: {
+      fill: "#f7f5ef"
+      stroke: "#172033"
+      border-radius: 6
+      font-color: "#172033"
+      font-size: 12
+    }
+  }
+  model: {
+    style: {
+      fill: "#1f55ff"
+      stroke: "#1f55ff"
+      font-color: "#ffffff"
+      border-radius: 14
+      font-size: 18
+      bold: true
+    }
+  }
+  param: {
+    style: {
+      fill: "#ffffff"
+      stroke: "#1f55ff"
+      stroke-width: 1
+      border-radius: 6
+      font-color: "#1f55ff"
+      font-size: 12
+      bold: true
+    }
+  }
+  output: {
+    style: {
+      fill: "#ffffff"
+      stroke: "#1f55ff"
+      stroke-width: 2
+      border-radius: 10
+      font-color: "#172033"
+      bold: true
+    }
+  }
+}
+
+inputs: "UCS-Features (Inference)" {
+  style.fill: "#f7f5ef"
+  style.stroke: "#1f55ff"
+  style.stroke-dash: 4
+  style.border-radius: 12
+
+  f1: "motor_load_ratio_max" { class: feat }
+  f2: "motor_load_ratio_mean" { class: feat }
+  f3: "motor_load_ratio_std" { class: feat }
+  f4: "cycle_intensity" { class: feat }
+  f5: "velocity_intensity_max" { class: feat }
+  f6: "thermal_state" { class: feat }
+  f7: "payload_class" { class: feat }
+}
+
+model: "LightGBM" {
+  class: model
+
+  hp: "Hyperparameter" {
+    style.fill: "#ffffff"
+    style.stroke: "#1f55ff"
+    style.border-radius: 10
+
+    h1: "num_leaves = 15" { class: param }
+    h2: "learning_rate = 0.05" { class: param }
+    h3: "n_estimators = 300" { class: param }
+    h4: "early_stopping = 30" { class: param }
+    h5: "loss = RMSE auf log(y)" { class: param }
+  }
+}
+
+output: "wear_rate_multiplier\nclip [0.3 , 5.0]" { class: output }
+
+inputs -> model
+model -> output: "predict"
+
+(* -> *)[*].style: {
+  stroke: "#172033"
+  stroke-width: 2
+  font-color: "#172033"
+}

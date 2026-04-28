@@ -1,0 +1,89 @@
+vars: {
+  d2-config: {
+    layout-engine: dagre
+    pad: 40
+  }
+}
+
+direction: right
+
+classes: {
+  comp: {
+    style: {
+      fill: "#ffffff"
+      stroke: "#1f55ff"
+      stroke-width: 2
+      border-radius: 10
+      font-color: "#172033"
+    }
+  }
+  ds: {
+    style: {
+      fill: "#f7f5ef"
+      stroke: "#172033"
+      border-radius: 6
+      font-color: "#687385"
+      font-size: 11
+    }
+  }
+  total: {
+    style: {
+      fill: "#1f55ff"
+      stroke: "#1f55ff"
+      font-color: "#ffffff"
+      border-radius: 14
+      font-size: 18
+      bold: true
+    }
+  }
+}
+
+formula: "cost_per_pick = energy + wear · multiplier + capital + maintenance" {
+  style.fill: "#ffffff"
+  style.stroke: "#1f55ff"
+  style.stroke-dash: 4
+  style.border-radius: 12
+  style.font-size: 14
+  style.bold: true
+  style.font-color: "#172033"
+}
+
+energy: "Energy\npower_w · cycle_t · €/kWh\n\n≈ 0.000025 €" { class: comp }
+wear: "Wear\n(cost_new / lifetime) · multiplier\n\n35 000 € / 30 M = 0.00117 €\n× wear_rate_multiplier" { class: comp }
+capital: "Capital\ncost_new · interest / lifetime\n\n35 000 € · 5 % / 30 M\n= 0.00006 €" { class: comp }
+maintenance: "Maintenance\ncost_new · pct_pa / picks_pa\n\n35 000 € · 5 % / 2 M\n= 0.000875 €" { class: comp }
+
+ur5_ds: "UR5-Datasheet" {
+  style.fill: "#f7f5ef"
+  style.stroke: "#172033"
+  style.border-radius: 12
+
+  cn: "cost_new = 35 000 €" { class: ds }
+  lt: "nominal_picks_lifetime = 30 M" { class: ds }
+  pp: "power_consumption_w = 150" { class: ds }
+  mp: "maintenance_pct_pa = 5 %" { class: ds }
+  ct: "rated_cycle_time_s = 2.0" { class: ds }
+}
+
+total: "Σ ≈ 0.0020 € pro Pick (nominal)\n0.0026 € bei Wear 1.5×" { class: total }
+
+ur5_ds -> energy: { style.stroke-dash: 3 }
+ur5_ds -> wear: { style.stroke-dash: 3 }
+ur5_ds -> capital: { style.stroke-dash: 3 }
+ur5_ds -> maintenance: { style.stroke-dash: 3 }
+
+formula -> energy
+formula -> wear
+formula -> capital
+formula -> maintenance
+
+energy -> total
+wear -> total
+capital -> total
+maintenance -> total
+
+(* -> *)[*].style: {
+  stroke: "#172033"
+  stroke-width: 2
+  font-color: "#687385"
+}

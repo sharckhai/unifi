@@ -1,0 +1,48 @@
+vars: {
+  d2-config: {
+    layout-engine: dagre
+    pad: 40
+  }
+}
+
+shape: sequence_diagram
+
+user: "User\n(neuer Roboter-Owner)" {
+  style.font-color: "#172033"
+  style.bold: true
+}
+
+ucs_agent: "UCS-Agent\n(LLM Function-Calls)" {
+  style.font-color: "#1f55ff"
+  style.bold: true
+}
+
+normalizer: "UCS-Normalizer" {
+  style.font-color: "#172033"
+}
+
+model: "Wear-Rate-Modell\n(vortrainiert auf UR5)" {
+  style.font-color: "#1f55ff"
+}
+
+cost_engine: "Cost-Engine" {
+  style.font-color: "#172033"
+}
+
+drop: {
+  user -> ucs_agent: "drop( Telemetrie-CSV + Datasheet )"
+}
+
+map_telemetry: "Schema-Mapping" {
+  ucs_agent -> ucs_agent: "LLM-Call 1\nFeldnamen → UCS-Schema"
+  ucs_agent -> ucs_agent: "LLM-Call 2\nDatasheet → Konstanten"
+  ucs_agent -> user: "Mapping-Vorschlag\nmit Confidence"
+  user -> ucs_agent: "bestätigen"
+}
+
+inference: "Inferenz — kein Re-Training" {
+  ucs_agent -> normalizer: "rohe Telemetrie + Datasheet"
+  normalizer -> model: "dimensionslose UCS-Features"
+  model -> cost_engine: "wear_rate_multiplier"
+  cost_engine -> user: "Cost-per-Pick — live"
+}

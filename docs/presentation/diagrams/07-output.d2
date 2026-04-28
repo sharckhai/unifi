@@ -1,0 +1,70 @@
+vars: {
+  d2-config: {
+    layout-engine: dagre
+    pad: 40
+  }
+}
+
+direction: right
+
+classes: {
+  band: {
+    style: {
+      border-radius: 8
+      font-color: "#172033"
+      font-size: 14
+      bold: true
+    }
+  }
+}
+
+scale: "wear_rate_multiplier — kontinuierliche Ausgabe pro Pick" {
+  style.fill: "#ffffff"
+  style.stroke: "#1f55ff"
+  style.stroke-width: 2
+  style.border-radius: 14
+  style.font-size: 16
+  style.bold: true
+
+  low: "0.3×\nschonend" {
+    class: band
+    style.fill: "#f7f5ef"
+    style.stroke: "#687385"
+  }
+  nominal: "1.0×\nnominal\n(Anker)" {
+    class: band
+    style.fill: "#ffffff"
+    style.stroke: "#1f55ff"
+    style.stroke-width: 2
+  }
+  heavy: "2.5×\nschwere Last\n+ thermisch" {
+    class: band
+    style.fill: "#1f55ff"
+    style.stroke: "#1f55ff"
+    style.font-color: "#ffffff"
+  }
+  critical: "5.0×\nclip-cap" {
+    class: band
+    style.fill: "#172033"
+    style.stroke: "#172033"
+    style.font-color: "#ffffff"
+  }
+
+  low -> nominal -> heavy -> critical
+}
+
+cost_hook: "Verschleiß-Komponente\nim Cost-per-Pick\nskaliert direkt mit\nwear_rate_multiplier" {
+  style.fill: "#f7f5ef"
+  style.stroke: "#172033"
+  style.stroke-dash: 3
+  style.border-radius: 10
+  style.font-color: "#172033"
+}
+
+scale -> cost_hook: "speist"
+
+(* -> *)[*].style: {
+  stroke: "#172033"
+  stroke-width: 2
+  font-color: "#172033"
+}

@@ -1,0 +1,94 @@
+vars: {
+  d2-config: {
+    layout-engine: dagre
+    pad: 40
+  }
+}
+
+direction: right
+
+classes: {
+  raw: {
+    style: {
+      fill: "#f7f5ef"
+      stroke: "#172033"
+      stroke-width: 1
+      border-radius: 6
+      font-color: "#172033"
+      font-size: 13
+    }
+  }
+  ds: {
+    style: {
+      fill: "#ffffff"
+      stroke: "#1f55ff"
+      stroke-width: 2
+      border-radius: 10
+      font-color: "#1f55ff"
+      bold: true
+    }
+  }
+  norm: {
+    style: {
+      fill: "#1f55ff"
+      stroke: "#1f55ff"
+      font-color: "#ffffff"
+      border-radius: 8
+      font-size: 13
+      bold: true
+    }
+  }
+}
+
+raw: "Rohwerte (Roboter-spezifisch)" {
+  style.fill: "#f7f5ef"
+  style.stroke: "#1f55ff"
+  style.stroke-dash: 4
+  style.border-radius: 12
+
+  i_max: "max( actual_current_J* )  [A]" { class: raw }
+  t_obs: "cycle_duration_observed  [s]" { class: raw }
+  payload: "payload_kg  [kg]" { class: raw }
+  temp: "max( joint_temperature_J* )  [°C]" { class: raw }
+}
+
+datasheet: "UR5-Datasheet" {
+  style.fill: "#ffffff"
+  style.stroke: "#172033"
+  style.border-radius: 12
+
+  ir: "rated_current_a = 6.0 A" { class: ds }
+  cr: "rated_cycle_time_s = 2.0 s" { class: ds }
+  pr: "rated_payload_kg = 5.0 kg" { class: ds }
+  tref: "T_ref = 30 °C" { class: ds }
+}
+
+ucs: "UCS-Features (dimensionslos)" {
+  style.fill: "#f7f5ef"
+  style.stroke: "#1f55ff"
+  style.stroke-width: 2
+  style.border-radius: 12
+
+  motor: "motor_load_ratio  =  I_max / 6.0" { class: norm }
+  cycle: "cycle_intensity  =  2.0 / T_obs" { class: norm }
+  pclass: "payload_class  =  payload_kg / 5.0" { class: norm }
+  thermal: "thermal_state  =  (T − 30) / 50" { class: norm }
+}
+
+raw.i_max -> ucs.motor: { source-arrowhead.shape: arrow }
+datasheet.ir -> ucs.motor: { style.stroke-dash: 3 }
+
+raw.t_obs -> ucs.cycle
+datasheet.cr -> ucs.cycle: { style.stroke-dash: 3 }
+
+raw.payload -> ucs.pclass
+datasheet.pr -> ucs.pclass: { style.stroke-dash: 3 }
+
+raw.temp -> ucs.thermal
+datasheet.tref -> ucs.thermal: { style.stroke-dash: 3 }
+
+(* -> *)[*].style: {
+  stroke: "#172033"
+  stroke-width: 2
+  font-color: "#687385"
+}
