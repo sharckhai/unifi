@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>UNIFI · Daten → ML → Finanzmodell</title>
-  <meta name="description" content="Technische Pipeline-Übersicht für UNIFI: NIST UR5 Telemetrie, dimensionslose UCS-Features, LightGBM Wear-Rate-Modell und Cost-per-Pick-Engine." />
+  <title>UNIFI · data → ml → cost pipeline</title>
+  <meta name="description" content="Technical pipeline reference: NIST UR5 telemetry, windowing, dimensionless features, physics-based wear labels, LightGBM model, cost-per-pick engine." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -14,186 +14,466 @@
   <nav class="nav">
     <div class="nav-brand">
       <span>UNIFI<span class="accent">.</span></span>
-      <span class="sub">tech-pipeline</span>
+      <span class="sub">data → ml → cost</span>
     </div>
     <div class="nav-links">
-      <a href="#daten"><span class="num">02</span> Daten</a>
-      <a href="#sampling"><span class="num">03</span> Sampling</a>
-      <a href="#labels"><span class="num">04</span> Labels</a>
-      <a href="#norm"><span class="num">05</span> Normalisierung</a>
-      <a href="#modell"><span class="num">06</span> Modell</a>
-      <a href="#output"><span class="num">07</span> Output</a>
-      <a href="#finanz"><span class="num">08</span> Finanzmodell</a>
-      <a href="#ucs"><span class="num">09</span> UCS</a>
+      <a href="#overview"><span class="num">01</span> Overview</a>
+      <a href="#records"><span class="num">02</span> Records</a>
+      <a href="#windowing"><span class="num">03</span> Windowing</a>
+      <a href="#features"><span class="num">04</span> Features</a>
+      <a href="#labels"><span class="num">05</span> Labels</a>
+      <a href="#model"><span class="num">06</span> Model</a>
+      <a href="#cost"><span class="num">07</span> Cost</a>
+      <a href="#ucs"><span class="num">08</span> UCS</a>
     </div>
   </nav>
 
   <main>
+    <!-- =========================================================== -->
+    <!-- OVERVIEW -->
+    <!-- =========================================================== -->
     <section class="hero" id="overview">
-      <div class="hero-eyebrow">Financial Layer for Robotics-as-a-Service</div>
-      <h1 class="hero-title">Von 73 Sensor&shy;feldern zu <span class="accent">€ 0,002</span> pro Pick.</h1>
+      <div class="hero-eyebrow">Pipeline reference</div>
+      <h1 class="hero-title">Telemetry &rarr; wear&#8209;rate multiplier &rarr; cost&#8209;per&#8209;pick.</h1>
       <p class="hero-lead">
-        UNIFI übersetzt Roboter-Telemetrie in bankenfähige Finanzdaten. Diese Seite zeigt die komplette Pipeline:
-        Datensatz, Sampling, Wear-Label-Generierung, dimensionslose Normalisierung, ML-Modell und Cost-per-Pick-Engine.
+        This page documents the data and modeling pipeline. Raw cobot telemetry is sliced into
+        2-second windows, aggregated, normalized against the robot datasheet, fed to a regression
+        model that predicts a wear-rate multiplier, and then plugged into a deterministic
+        cost-per-pick formula.
       </p>
 
       <div class="hero-grid">
         <div class="hero-card">
-          <span class="micro">Datensatz</span>
-          <div class="value">125 Hz</div>
-          <div class="unit">73 Sensor-Felder · NIST UR5 Cobot</div>
+          <span class="micro">Source columns</span>
+          <div class="value">73 → 36</div>
+          <div class="unit">total CSV columns / used for aggregation</div>
         </div>
         <div class="hero-card">
-          <span class="micro">Stratifikation</span>
-          <div class="value">18 × 3</div>
-          <div class="unit">Konfigurationen × Wiederholungen</div>
+          <span class="micro">Window output</span>
+          <div class="value">36 × 7</div>
+          <div class="unit">252 raw aggregates per 2 s window</div>
         </div>
         <div class="hero-card">
-          <span class="micro">ML-Output</span>
-          <div class="value">0.3× – 5.0×</div>
-          <div class="unit">wear_rate_multiplier (kontinuierlich)</div>
+          <span class="micro">Model I/O</span>
+          <div class="value">12 → 1</div>
+          <div class="unit">10 numeric + 2 categorical → multiplier</div>
         </div>
         <div class="hero-card">
           <span class="micro">UR5 nominal</span>
-          <div class="value">€ 0,0020</div>
-          <div class="unit">pro Pick · Wear · Capital · Maint · Energy</div>
+          <div class="value">€ 0.0020</div>
+          <div class="unit">per pick · energy + wear + capital + maint.</div>
         </div>
       </div>
 
-      <div class="diagram-panel" style="margin-top:3rem;">
-        <span class="diagram-corner top-right">01 · End-to-End-Pipeline</span>
-        <img src="diagrams/01-pipeline.svg" alt="UNIFI Pipeline-Overview" />
-        <span class="diagram-corner bottom-left">UNIFI / pipeline-overview</span>
-      </div>
+      <details class="diagram-details">
+        <summary>Pipeline diagram</summary>
+        <div class="diagram-panel">
+          <span class="diagram-corner top-right">01 · end-to-end</span>
+          <img src="diagrams/01-pipeline.svg" alt="Pipeline overview" />
+          <span class="diagram-corner bottom-left">unifi / pipeline</span>
+        </div>
+      </details>
     </section>
 
-    <section id="daten">
+    <!-- =========================================================== -->
+    <!-- RECORDS -->
+    <!-- =========================================================== -->
+    <section id="records">
       <div class="section-header">
-        <span class="section-num">02 · Daten</span>
-        <h2 class="section-title">NIST UR5 Cobot, 6&nbsp;DOF</h2>
+        <span class="section-num">02 · records</span>
+        <h2 class="section-title">Record schema</h2>
       </div>
-      <p class="section-lead">
-        18 Konfigurationen × 3 Runs, je <code>actual_current</code>, <code>position</code>, <code>velocity</code>, <code>target_torque</code>, <code>joint_temperature</code> für sechs Joints — plus TCP-Pose und Wrench. Stratifiziert über Payload, Speed und Coldstart.
-      </p>
-      <div class="diagram-panel">
-        <span class="diagram-corner top-right">02 · Schema & Stratifikation</span>
-        <img src="diagrams/02-daten.svg" alt="NIST UR5 Datensatz-Schema" />
-        <span class="diagram-corner bottom-left">UNIFI / data</span>
+
+      <div class="prose">
+        <p>
+          The NIST UR5 dataset ships as CSV files with <strong>exactly 73 columns</strong>. Each row
+          is a snapshot of the robot state at one timestamp. Sample rate is 125 Hz, so rows arrive
+          every <strong>~8 ms</strong>. A typical run file holds ~8 600 rows, i.e. about 70 seconds of
+          motion.
+        </p>
+        <p>
+          Of the 73 columns, the pipeline aggregates <strong>36 columns</strong> grouped into six
+          families:
+        </p>
+        <ul class="bullet-list">
+          <li><strong>Joint current</strong> — six columns <code>actual_current_J1…J6</code> in amps. Primary load proxy: high current ⇒ high motor torque demand.</li>
+          <li><strong>Joint velocity</strong> — six columns <code>actual_velocity_J1…J6</code> in rad/s. Angular speed of each axis.</li>
+          <li><strong>Joint temperature</strong> — six columns <code>joint_temperature_J1…J6</code> in °C. Thermal aging of bearings and lubricant.</li>
+          <li><strong>Target torque</strong> — six columns <code>target_torque_J1…J6</code> in Nm. What the controller demanded from each joint.</li>
+          <li><strong>TCP force</strong> — six columns at the tool center point: <code>force_x, force_y, force_z, rx, ry, rz</code>. Reaction force at the gripper.</li>
+          <li><strong>Tracking error</strong> — six derived columns per joint: <code>target_position − actual_position</code> in radians. How tightly the robot follows the planned path.</li>
+        </ul>
+        <p>
+          Joint <em>position</em> is not aggregated directly — absolute angles carry no wear signal.
+          The signal lives in the <em>delta</em> between target and actual position, i.e. the
+          tracking error.
+        </p>
+        <p class="small muted">
+          The remaining 37 columns (target position, target velocity, target current, acceleration,
+          control current, cartesian pose) are loaded but not aggregated by the current pipeline.
+          They are reserved for future anomaly detection.
+        </p>
       </div>
+
+      <details class="diagram-details">
+        <summary>Schema diagram</summary>
+        <div class="diagram-panel">
+          <span class="diagram-corner top-right">02 · schema & stratification</span>
+          <img src="diagrams/02-daten.svg" alt="UR5 schema" />
+          <span class="diagram-corner bottom-left">unifi / data</span>
+        </div>
+      </details>
     </section>
 
-    <section id="sampling">
+    <!-- =========================================================== -->
+    <!-- WINDOWING -->
+    <!-- =========================================================== -->
+    <section id="windowing">
       <div class="section-header">
-        <span class="section-num">03 · Sampling</span>
-        <h2 class="section-title">125&nbsp;Hz → 2&nbsp;s Fenster → 7 Aggregate</h2>
+        <span class="section-num">03 · windowing</span>
+        <h2 class="section-title">Stream → fixed-size samples</h2>
       </div>
-      <p class="section-lead">
-        Aus dem 125-Hz-Stream werden überlappende 2-Sekunden-Fenster geschnitten. Pro Feld berechnen wir sieben Aggregate (Count, Max, Min, Mean, Std, Trend, Frequency) — daraus entsteht der UCS-Feature-Vektor.
-      </p>
-      <div class="diagram-panel">
-        <span class="diagram-corner top-right">03 · Windowing</span>
-        <img src="diagrams/03-sampling.svg" alt="Sampling und Windowing" />
-        <span class="diagram-corner bottom-left">UNIFI / windowing</span>
+
+      <div class="prose">
+        <p>
+          A single 8 ms snapshot is too noisy to model. Rows are grouped into
+          <strong>non-overlapping 2-second windows</strong>. At 125 Hz each window contains roughly
+          <strong>250 rows</strong>. The trailing partial window at the end of a run is discarded.
+        </p>
+        <p>
+          For each of the 36 selected columns the pipeline computes <strong>seven aggregates</strong>
+          inside the window:
+        </p>
+        <div class="stat-grid">
+          <div class="stat"><code>vCnt</code><span>sample count</span></div>
+          <div class="stat"><code>vFreq</code><span>effective sample rate</span></div>
+          <div class="stat"><code>vMax</code><span>maximum</span></div>
+          <div class="stat"><code>vMin</code><span>minimum</span></div>
+          <div class="stat"><code>vStd</code><span>standard deviation</span></div>
+          <div class="stat"><code>vTrend</code><span>linear slope</span></div>
+          <div class="stat"><code>value</code><span>mean</span></div>
+        </div>
+        <p>
+          <strong>36 columns × 7 aggregates = 252 values per window.</strong> They are flattened into
+          a row keyed <code>&lt;col&gt;_&lt;stat&gt;</code> — e.g.
+          <code>actual_current_J1_vMax</code>. A window therefore becomes one row in a 252-column
+          table; this is the immediate pre-model artifact.
+        </p>
+        <p class="small muted">
+          The aggregate set follows the PHM Society 2021 SCARA convention. Same stat schema across
+          robot types so the downstream model can transfer.
+        </p>
       </div>
+
+      <details class="diagram-details">
+        <summary>Windowing diagram</summary>
+        <div class="diagram-panel">
+          <span class="diagram-corner top-right">03 · 125 hz → 2 s → 7 stats</span>
+          <img src="diagrams/03-sampling.svg" alt="Windowing" />
+          <span class="diagram-corner bottom-left">unifi / windowing</span>
+        </div>
+      </details>
     </section>
 
+    <!-- =========================================================== -->
+    <!-- FEATURES -->
+    <!-- =========================================================== -->
+    <section id="features">
+      <div class="section-header">
+        <span class="section-num">04 · features</span>
+        <h2 class="section-title">252 → 10 dimensionless + 2 categorical</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          The 252-aggregate vector is not fed to the model directly. It is reduced to <strong>ten
+          dimensionless numeric features and two categorical features</strong>. Each numeric feature
+          is divided by a datasheet constant so the model sees relative load instead of absolute
+          values.
+        </p>
+
+        <table class="feature-table">
+          <thead>
+            <tr><th>Feature</th><th>Computation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>motor_load_ratio_max</code></td><td>peak joint current (max over J1…J6) <strong>/ rated_current_a</strong></td></tr>
+            <tr><td><code>motor_load_ratio_mean</code></td><td>mean current across joints / rated_current_a</td></tr>
+            <tr><td><code>motor_load_ratio_std</code></td><td>mean per-joint std / rated_current_a</td></tr>
+            <tr><td><code>cycle_intensity</code></td><td>rated_cycle_time_s <strong>/ observed_cycle_time_s</strong></td></tr>
+            <tr><td><code>velocity_intensity_max</code></td><td>peak joint velocity / nominal_joint_velocity (3 rad/s)</td></tr>
+            <tr><td><code>torque_load_ratio_max</code></td><td>peak target torque <strong>/ rated_torque_nm</strong></td></tr>
+            <tr><td><code>temp_delta_normalized_max</code></td><td>(T_max − 30 °C) / (80 − 30) °C</td></tr>
+            <tr><td><code>temp_delta_normalized_mean</code></td><td>(T_mean − 30 °C) / (80 − 30) °C</td></tr>
+            <tr><td><code>tcp_force_norm</code></td><td>‖TCP force xyz‖ / (rated_payload_kg · g)</td></tr>
+            <tr><td><code>tracking_error_rms</code></td><td>RMS over per-joint tracking errors [rad]</td></tr>
+            <tr><td><code>thermal_state</code></td><td>categorical: <code>cold</code> / <code>warm</code></td></tr>
+            <tr><td><code>payload_class</code></td><td>categorical: <code>light</code> / <code>heavy</code></td></tr>
+          </tbody>
+        </table>
+
+        <p>
+          Dividing by rated values makes the feature space robot-agnostic: a UR5 at 150 % rated
+          current and a SCARA at 150 % rated current land in the same region of feature space, even
+          though their absolute amperages differ.
+        </p>
+      </div>
+
+      <details class="diagram-details">
+        <summary>Normalization diagram</summary>
+        <div class="diagram-panel">
+          <span class="diagram-corner top-right">05 · ucs mapping</span>
+          <img src="diagrams/05-normalisierung.svg" alt="Normalization" />
+          <span class="diagram-corner bottom-left">unifi / ucs.normalizer</span>
+        </div>
+      </details>
+    </section>
+
+    <!-- =========================================================== -->
+    <!-- LABELS -->
+    <!-- =========================================================== -->
     <section id="labels">
       <div class="section-header">
-        <span class="section-num">04 · Wear-Labels</span>
-        <h2 class="section-title">Physik statt Heuristik</h2>
+        <span class="section-num">05 · labels</span>
+        <h2 class="section-title">Wear-rate label generation</h2>
       </div>
-      <p class="section-lead">
-        Labels werden nicht geraten, sondern <em>physikalisch</em> berechnet: <code>multiplier = (I/I_rated)<sup>α</sup> · exp(k·ΔT) · T_rated/T_obs</code>. Verankerung: Median über <code>warm + fullspeed + light + Train</code>-Fenster ≡ 1.0×.
-      </p>
-      <div class="diagram-panel">
-        <span class="diagram-corner top-right">04 · Basquin · Arrhenius · Cycle</span>
-        <img src="diagrams/04-labels.svg" alt="Wear-Label-Generierung aus Physik" />
-        <span class="diagram-corner bottom-left">UNIFI / labels.physics</span>
+
+      <div class="prose">
+        <p>
+          NIST UR5 ships <strong>without explicit failure labels</strong> — no sensor reports
+          „this window degrades 1.7× faster than nominal". Labels are constructed from three
+          assumptions grounded in materials science:
+        </p>
+
+        <ol class="annahmen">
+          <li>
+            <strong>Load stress (Basquin's law).</strong>
+            Fatigue damage scales as a power of stress amplitude. We take the peak joint current in
+            the window (proportional to torque) and raise the ratio against rated current to
+            <code>α = 2.5</code>. 50 % overload therefore implies roughly 2.75× wear rate, not 1.5×.
+          </li>
+          <li>
+            <strong>Thermal aging (Arrhenius).</strong>
+            Lubricant and bearing degradation grow exponentially with temperature. We multiply by
+            <code>exp(0.05 · ΔT)</code> where ΔT is degrees above the reference temperature
+            (30 °C). At 60 °C the thermal factor is <code>e<sup>1.5</sup> ≈ 4.5</code>.
+          </li>
+          <li>
+            <strong>Cycle density.</strong>
+            More cycles per unit time means less cooling and recovery. We multiply by
+            <code>rated_cycle_time / observed_cycle_time</code>. In the NIST data this ratio is
+            taken from the filename tag (<code>fullspeed</code> = 1.0× rated,
+            <code>halfspeed</code> = 2.0× rated). True per-pick detection is deferred.
+          </li>
+        </ol>
+
+        <p>The three factors combine multiplicatively:</p>
+        <p class="formula">
+          <code>raw_wear = (I/I<sub>rated</sub>)<sup>2.5</sup> · exp(0.05·(T − 30°C)) · (T<sub>rated</sub> / T<sub>obs</sub>)</code>
+        </p>
+
+        <p>
+          <strong>Anchor normalization.</strong> The raw value has no meaningful scale on its own.
+          The pipeline takes the <strong>median over all windows that match
+          <code>warm + fullspeed + light + train</code></strong> and pins that median to
+          <strong>1.0×</strong>. Every other window is then expressed relative to it. A window with
+          a label of 2.0× wears twice as fast as the nominal-load reference.
+        </p>
+
+        <p class="small muted">
+          α = 2.5 and k = 0.05 are literature defaults for steel/lubricant systems. They are a
+          first-order approximation; in production they would be tuned via cross-validation and
+          eventually fit against field-data RUL outcomes.
+        </p>
       </div>
+
+      <details class="diagram-details">
+        <summary>Label-generation diagram</summary>
+        <div class="diagram-panel">
+          <span class="diagram-corner top-right">04 · basquin · arrhenius · cycle</span>
+          <img src="diagrams/04-labels.svg" alt="Label generation" />
+          <span class="diagram-corner bottom-left">unifi / labels.physics</span>
+        </div>
+      </details>
     </section>
 
-    <section id="norm">
+    <!-- =========================================================== -->
+    <!-- MODEL -->
+    <!-- =========================================================== -->
+    <section id="model">
       <div class="section-header">
-        <span class="section-num">05 · Normalisierung</span>
-        <h2 class="section-title">Datasheet macht das Modell roboter&shy;agnostisch</h2>
+        <span class="section-num">06 · model</span>
+        <h2 class="section-title">LightGBM regression on log(wear)</h2>
       </div>
-      <p class="section-lead">
-        Rohe Werte sind roboter-spezifisch. Wir teilen jeden Sensor durch seinen Datasheet-Nennwert — <code>I_max / 6.0&nbsp;A</code>, <code>2.0&nbsp;s / T_obs</code>, <code>payload_kg / 5.0&nbsp;kg</code>. So lernt das Modell <em>relative</em> Beanspruchung, nicht UR5-Strom-Magie.
-      </p>
-      <div class="diagram-panel">
-        <span class="diagram-corner top-right">05 · UCS-Mapping</span>
-        <img src="diagrams/05-normalisierung.svg" alt="Datasheet-Normalisierung zu dimensionslosen UCS-Features" />
-        <span class="diagram-corner bottom-left">UNIFI / ucs.normalizer</span>
+
+      <div class="prose">
+        <p>
+          The model is a gradient-boosted-tree regressor (LightGBM). It is trained on the
+          <strong>logarithm</strong> of the multiplier rather than the multiplier itself, because
+          multipliers are multiplicatively distributed — 0.5× and 2.0× are symmetric around 1.0×
+          on a log scale.
+        </p>
+
+        <ul class="bullet-list">
+          <li><strong>Input:</strong> 10 dimensionless numeric features + 2 categorical (integer-encoded).</li>
+          <li><strong>Hyperparameters:</strong> <code>num_leaves = 15</code>, <code>learning_rate = 0.05</code>, <code>n_estimators = 300</code>, <code>early_stopping = 30</code>.</li>
+          <li><strong>Loss:</strong> RMSE on <code>log(wear_rate_multiplier)</code>.</li>
+          <li><strong>Inference:</strong> <code>exp(prediction)</code>, then clipped to <code>[0.3, 5.0]</code>.</li>
+          <li><strong>Persistence:</strong> booster serialized to <code>artifacts/wear_rate_lgbm.txt</code>.</li>
+        </ul>
+
+        <p>
+          GBDT was chosen over a neural net because the feature count is small (10 numeric), the
+          training set is modest (thousands of windows), and tree boosting gives free SHAP-based
+          feature importance for downstream interpretability.
+        </p>
       </div>
+
+      <details class="diagram-details">
+        <summary>Model diagram</summary>
+        <div class="diagram-panel">
+          <span class="diagram-corner top-right">06 · wear-rate model</span>
+          <img src="diagrams/06-modell.svg" alt="Model architecture" />
+          <span class="diagram-corner bottom-left">unifi / models.wear_rate</span>
+        </div>
+      </details>
+
+      <details class="diagram-details">
+        <summary>Output range diagram</summary>
+        <div class="diagram-panel">
+          <span class="diagram-corner top-right">07 · multiplier range</span>
+          <img src="diagrams/07-output.svg" alt="Output range" />
+          <span class="diagram-corner bottom-left">unifi / output</span>
+        </div>
+      </details>
     </section>
 
-    <section id="modell">
+    <!-- =========================================================== -->
+    <!-- COST -->
+    <!-- =========================================================== -->
+    <section id="cost">
       <div class="section-header">
-        <span class="section-num">06 · Modell</span>
-        <h2 class="section-title">LightGBM auf log(Wear)</h2>
+        <span class="section-num">07 · cost</span>
+        <h2 class="section-title">Cost-per-pick · four components</h2>
       </div>
-      <p class="section-lead">
-        Gradient-Boosted Trees mit <code>num_leaves=15</code>, <code>lr=0.05</code>, <code>n_estimators=300</code>. Trainiert auf <code>log(multiplier)</code> mit RMSE-Loss und Early-Stopping. Vorhersagen werden auf <code>[0.3, 5.0]</code> geclippt.
-      </p>
-      <div class="diagram-panel">
-        <span class="diagram-corner top-right">06 · Wear-Rate-Modell</span>
-        <img src="diagrams/06-modell.svg" alt="LightGBM Modell-Architektur" />
-        <span class="diagram-corner bottom-left">UNIFI / models.wear_rate</span>
+
+      <div class="prose">
+        <p>
+          Once the model emits a <code>wear_rate_multiplier</code> per pick, the cost-per-pick
+          calculation is pure arithmetic — no second model. Four components, all derivable from
+          the datasheet plus a finance/operating config:
+        </p>
+
+        <div class="cost-grid">
+          <div class="cost-block">
+            <div class="micro">energy</div>
+            <div class="cost-formula"><code>power_w · load · cycle_t · €/kWh</code></div>
+            <p>
+              Per-pick electricity: rated power times load factor times cycle duration times
+              electricity price. UR5 at 150 W, 2 s cycle, nominal load: <strong>≈ €0.000025</strong>.
+              The smallest component.
+            </p>
+          </div>
+
+          <div class="cost-block">
+            <div class="micro">wear</div>
+            <div class="cost-formula"><code>(cost_new / lifetime) · multiplier</code></div>
+            <p>
+              Capex amortized across lifetime picks, scaled by the live multiplier.
+              UR5 = €35 000 / 30 M picks = <strong>€0.00117 at 1.0×</strong>; at 1.5× it becomes
+              €0.00175. The only component that reacts to telemetry.
+            </p>
+          </div>
+
+          <div class="cost-block">
+            <div class="micro">capital</div>
+            <div class="cost-formula"><code>cost_new · interest_rate / lifetime</code></div>
+            <p>
+              Cost of capital tied up in the asset, amortized over lifetime picks. UR5 at 5 %:
+              €35 000 · 0.05 / 30 M = <strong>€0.00006</strong>.
+            </p>
+          </div>
+
+          <div class="cost-block">
+            <div class="micro">maintenance</div>
+            <div class="cost-formula"><code>cost_new · pct_p.a. / picks_p.a.</code></div>
+            <p>
+              Annual maintenance as a fraction of capex, divided by annual picks. UR5 at 5 % p.a.
+              and 2 M picks/year = <strong>€0.000875</strong>.
+            </p>
+          </div>
+        </div>
+
+        <div class="total-line">
+          <span>Σ UR5 nominal (multiplier = 1.0)</span>
+          <strong>≈ €0.0020 per pick</strong>
+        </div>
+        <div class="total-line subtle">
+          <span>Σ UR5 under load (multiplier = 1.5)</span>
+          <strong>≈ €0.0026 per pick</strong>
+        </div>
+
+        <p>
+          <strong>Assumptions.</strong> Linear depreciation across lifetime; flat electricity price
+          and interest rate; maintenance modeled as an annual percentage of capex; energy taken
+          from datasheet rated power, not from real-time current readings. The wear-rate multiplier
+          is the only term that varies with telemetry; everything else is static config.
+        </p>
       </div>
+
+      <details class="diagram-details">
+        <summary>Cost-engine diagram</summary>
+        <div class="diagram-panel">
+          <span class="diagram-corner top-right">08 · cost engine</span>
+          <img src="diagrams/08-finanzmodell.svg" alt="Cost engine" />
+          <span class="diagram-corner bottom-left">unifi / cost.engine</span>
+        </div>
+      </details>
     </section>
 
-    <section id="output">
-      <div class="section-header">
-        <span class="section-num">07 · Output</span>
-        <h2 class="section-title">Ein kontinuierlicher Multiplier</h2>
-      </div>
-      <p class="section-lead">
-        Pro Pick gibt das Modell genau einen Wert aus — den <code>wear_rate_multiplier</code>. Er moduliert die Verschleißkomponente in der Cost-Engine. Keine Klassen, kein RUL — eine Zahl.
-      </p>
-      <div class="diagram-panel">
-        <span class="diagram-corner top-right">07 · Wear-Rate-Skala</span>
-        <img src="diagrams/07-output.svg" alt="Wear-Rate-Multiplier-Skala" />
-        <span class="diagram-corner bottom-left">UNIFI / output</span>
-      </div>
-    </section>
-
-    <section id="finanz">
-      <div class="section-header">
-        <span class="section-num">08 · Finanzmodell</span>
-        <h2 class="section-title">Cost-per-Pick — vier Komponenten</h2>
-      </div>
-      <p class="section-lead">
-        <code>cost = energy + wear·multiplier + capital + maintenance</code>. Reine Arithmetik aus Datasheet-Werten und ML-Output. UR5: 35.000&nbsp;€ / 30M Picks → 0,00117&nbsp;€ Verschleiß bei 1.0×, skaliert linear mit dem Multiplier.
-      </p>
-      <div class="diagram-panel">
-        <span class="diagram-corner top-right">08 · Cost-Engine</span>
-        <img src="diagrams/08-finanzmodell.svg" alt="Cost-per-Pick Komponenten" />
-        <span class="diagram-corner bottom-left">UNIFI / cost.engine</span>
-      </div>
-    </section>
-
+    <!-- =========================================================== -->
+    <!-- UCS -->
+    <!-- =========================================================== -->
     <section id="ucs">
       <div class="section-header">
-        <span class="section-num">09 · UCS-Drop-in</span>
-        <h2 class="section-title">Fremder Roboter, kein Re-Training</h2>
+        <span class="section-num">08 · ucs</span>
+        <h2 class="section-title">UCS drop-in · zero-shot transfer</h2>
       </div>
-      <p class="section-lead">
-        User droppt Telemetrie + Datasheet. Ein LLM-Agent mappt das Schema auf UCS und extrahiert Datasheet-Konstanten. Dasselbe vortrainierte Modell scort den fremden Stream — Cost-per-Pick tickt live.
-      </p>
-      <div class="diagram-panel">
-        <span class="diagram-corner top-right">09 · Drop-in-Sequence</span>
-        <img src="diagrams/09-ucs.svg" alt="UCS Drop-in Sequence Diagram" />
-        <span class="diagram-corner bottom-left">UNIFI / ucs.agent</span>
+
+      <div class="prose">
+        <p>
+          Because all numeric features are dimensionless ratios against datasheet constants, the
+          same trained model can score telemetry from any robot whose schema can be mapped to UCS.
+          The UCS agent automates that mapping with two structured LLM function calls:
+        </p>
+        <ol class="annahmen">
+          <li>User uploads two files — the foreign telemetry CSV and the foreign datasheet.</li>
+          <li>Agent emits two function calls: one maps the column names onto the UCS schema, the other extracts datasheet constants (rated current, rated cycle time, rated payload).</li>
+          <li>User confirms or edits the mapping in the UI.</li>
+          <li>Normalizer applies the extracted constants to compute UCS features.</li>
+          <li>Inference runs against the UR5-trained model — no re-training.</li>
+          <li>Cost engine emits <code>€/pick</code> using the foreign datasheet's capex and lifetime.</li>
+        </ol>
       </div>
+
+      <details class="diagram-details">
+        <summary>UCS sequence diagram</summary>
+        <div class="diagram-panel">
+          <span class="diagram-corner top-right">09 · drop-in sequence</span>
+          <img src="diagrams/09-ucs.svg" alt="UCS drop-in" />
+          <span class="diagram-corner bottom-left">unifi / ucs.agent</span>
+        </div>
+      </details>
     </section>
   </main>
 
   <footer>
     <div class="footer-grid">
       <div class="footer-block">
-        <div class="micro">Code-Quellen</div>
+        <div class="micro">code references</div>
         <ul>
           <li><code>apps/backend/src/unifi/data/windowing.py</code></li>
+          <li><code>apps/backend/src/unifi/data/ur5_loader.py</code></li>
           <li><code>apps/backend/src/unifi/ucs/normalizer.py</code></li>
           <li><code>apps/backend/src/unifi/labels/physics.py</code></li>
           <li><code>apps/backend/src/unifi/models/wear_rate.py</code></li>
@@ -202,24 +482,27 @@
         </ul>
       </div>
       <div class="footer-block">
-        <div class="micro">Datasheet · UR5</div>
+        <div class="micro">datasheet · ur5</div>
         <ul>
-          <li>cost_new = 35 000 €</li>
+          <li>cost_new = €35 000</li>
           <li>nominal_picks_lifetime = 30 000 000</li>
           <li>rated_current_a = 6.0</li>
+          <li>rated_torque_nm = 150</li>
           <li>rated_cycle_time_s = 2.0</li>
           <li>rated_payload_kg = 5.0</li>
           <li>maintenance_pct_per_year = 5 %</li>
+          <li>power_consumption_w = 150</li>
         </ul>
       </div>
       <div class="footer-block">
-        <div class="micro">Konstanten</div>
+        <div class="micro">constants</div>
         <ul>
           <li>α (Basquin) = 2.5</li>
           <li>k (Arrhenius) = 0.05</li>
           <li>T_ref = 30 °C · T_max = 80 °C</li>
           <li>nominal_joint_velocity = 3 rad/s</li>
           <li>clip wear_rate ∈ [0.3, 5.0]</li>
+          <li>LightGBM: leaves=15, lr=0.05, n=300</li>
         </ul>
       </div>
     </div>

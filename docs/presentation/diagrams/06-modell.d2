@@ -50,7 +50,7 @@ classes: {
   }
 }
 
-inputs: "UCS-Features (Inference)" {
+inputs: "UCS features (inference)" {
   style.fill: "#f7f5ef"
   style.stroke: "#1f55ff"
   style.stroke-dash: 4
@@ -68,7 +68,7 @@ inputs: "UCS-Features (Inference)" {
 model: "LightGBM" {
   class: model
 
-  hp: "Hyperparameter" {
+  hp: "Hyperparameters" {
     style.fill: "#ffffff"
     style.stroke: "#1f55ff"
     style.border-radius: 10
@@ -77,7 +77,7 @@ model: "LightGBM" {
     h2: "learning_rate = 0.05" { class: param }
     h3: "n_estimators = 300" { class: param }
     h4: "early_stopping = 30" { class: param }
-    h5: "loss = RMSE auf log(y)" { class: param }
+    h5: "loss = RMSE on log(y)" { class: param }
   }
 }
 

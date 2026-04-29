@@ -39,12 +39,12 @@ classes: {
   }
 }
 
-ur5: "NIST UR5 — Universal Robots Cobot" {
+ur5: "NIST UR5 — Universal Robots cobot" {
   class: group
   style.font-size: 18
   style.bold: true
 
-  joints: "6 Joints · J1 – J6" {
+  joints: "6 joints · J1 – J6" {
     class: group
     actual_current: "actual_current_J{1..6}  [A]" { class: field }
     actual_position: "actual_position_J{1..6}  [rad]" { class: field }
@@ -53,31 +53,31 @@ ur5: "NIST UR5 — Universal Robots Cobot" {
     joint_temp: "joint_temperature_J{1..6}  [°C]" { class: field }
   }
 
-  tcp: "TCP-Pose & Wrench" {
+  tcp: "TCP pose & wrench" {
     class: group
     pose: "tcp_position_{x,y,z,rx,ry,rz}" { class: field }
     wrench: "tcp_force / tcp_torque {x,y,z}" { class: field }
   }
 }
 
-scope: "Umfang" {
+scope: "Scope" {
   class: group
-  freq: "125 Hz Sampling" { class: field }
-  fields: "73 Sensor-Felder" { class: field }
+  freq: "125 Hz sample rate" { class: field }
+  fields: "73 sensor fields" { class: field }
   files: "40 CSV · 406 MB" { class: field }
-  runs: "18 Konfigurationen × 3 Runs" { class: field }
+  runs: "18 configurations × 3 runs" { class: field }
 }
 
-strat: "Stratifikation" {
+strat: "Stratification" {
   class: group
   payload: "Payload\n16 lb / 45 lb" { class: strat }
   speed: "Speed\nfull / half" { class: strat }
   thermal: "Thermal\ncold / warm" { class: strat }
-  run_idx: "Run-Index\n1 / 2 / 3" { class: strat }
+  run_idx: "Run index\n1 / 2 / 3" { class: strat }
 }
 
-ur5 -> scope: "Schema"
-ur5 -> strat: "Variation"
+ur5 -> scope: "schema"
+ur5 -> strat: "variation"
 
 (* -> *)[*].style: {
   stroke: "#172033"

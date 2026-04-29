@@ -48,24 +48,24 @@ formula: "cost_per_pick = energy + wear · multiplier + capital + maintenance" {
   style.font-color: "#172033"
 }
 
-energy: "Energy\npower_w · cycle_t · €/kWh\n\n≈ 0.000025 €" { class: comp }
-wear: "Wear\n(cost_new / lifetime) · multiplier\n\n35 000 € / 30 M = 0.00117 €\n× wear_rate_multiplier" { class: comp }
-capital: "Capital\ncost_new · interest / lifetime\n\n35 000 € · 5 % / 30 M\n= 0.00006 €" { class: comp }
-maintenance: "Maintenance\ncost_new · pct_pa / picks_pa\n\n35 000 € · 5 % / 2 M\n= 0.000875 €" { class: comp }
+energy: "Energy\npower_w · cycle_t · €/kWh\n\n≈ €0.000025" { class: comp }
+wear: "Wear\n(cost_new / lifetime) · multiplier\n\n€35 000 / 30 M = €0.00117\n× wear_rate_multiplier" { class: comp }
+capital: "Capital\ncost_new · interest / lifetime\n\n€35 000 · 5 % / 30 M\n= €0.00006" { class: comp }
+maintenance: "Maintenance\ncost_new · pct_pa / picks_pa\n\n€35 000 · 5 % / 2 M\n= €0.000875" { class: comp }
 
-ur5_ds: "UR5-Datasheet" {
+ur5_ds: "UR5 datasheet" {
   style.fill: "#f7f5ef"
   style.stroke: "#172033"
   style.border-radius: 12
 
-  cn: "cost_new = 35 000 €" { class: ds }
+  cn: "cost_new = €35 000" { class: ds }
   lt: "nominal_picks_lifetime = 30 M" { class: ds }
   pp: "power_consumption_w = 150" { class: ds }
   mp: "maintenance_pct_pa = 5 %" { class: ds }
   ct: "rated_cycle_time_s = 2.0" { class: ds }
 }
 
-total: "Σ ≈ 0.0020 € pro Pick (nominal)\n0.0026 € bei Wear 1.5×" { class: total }
+total: "Σ ≈ €0.0020 per pick (nominal)\n€0.0026 at wear 1.5×" { class: total }
 
 ur5_ds -> energy: { style.stroke-dash: 3 }
 ur5_ds -> wear: { style.stroke-dash: 3 }

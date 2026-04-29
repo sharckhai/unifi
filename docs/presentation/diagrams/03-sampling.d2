@@ -39,7 +39,7 @@ classes: {
   }
 }
 
-raw_stream: "Roh-Telemetrie · 125 Hz · ~8 ms Tick" {
+raw_stream: "Raw telemetry · 125 Hz · ~8 ms tick" {
   class: win
 
   s1: "t₀" { class: raw }
@@ -50,27 +50,27 @@ raw_stream: "Roh-Telemetrie · 125 Hz · ~8 ms Tick" {
   s1 -- s2 -- s3 -- s4 -- s5
 }
 
-window: "Sliding Window · 2 s · 250 Samples" { class: win }
+window: "Sliding window · 2 s · 250 samples" { class: win }
 
-aggs: "7 Aggregate pro Feld" {
+aggs: "7 aggregates per column" {
   class: win
   vCnt: "vCnt" { class: agg }
   vMax: "vMax" { class: agg }
   vMin: "vMin" { class: agg }
-  vMean: "vMean" { class: agg }
+  vMean: "value (mean)" { class: agg }
   vStd: "vStd" { class: agg }
   vTrend: "vTrend" { class: agg }
   vFreq: "vFreq" { class: agg }
 }
 
-features: "UCS-Feature-Vektor\npro Fenster" {
+features: "UCS feature vector\nper window" {
   class: win
   style.fill: "#f7f5ef"
 }
 
-raw_stream -> window: "schneiden"
-window -> aggs: "aggregieren"
-aggs -> features: "stacken"
+raw_stream -> window: "slice"
+window -> aggs: "aggregate"
+aggs -> features: "stack"
 
 (* -> *)[*].style: {
   stroke: "#172033"

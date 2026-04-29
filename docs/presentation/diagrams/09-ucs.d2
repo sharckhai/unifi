@@ -7,42 +7,42 @@ vars: {
 
 shape: sequence_diagram
 
-user: "User\n(neuer Roboter-Owner)" {
+user: "User\n(new robot owner)" {
   style.font-color: "#172033"
   style.bold: true
 }
 
-ucs_agent: "UCS-Agent\n(LLM Function-Calls)" {
+ucs_agent: "UCS agent\n(LLM function calls)" {
   style.font-color: "#1f55ff"
   style.bold: true
 }
 
-normalizer: "UCS-Normalizer" {
+normalizer: "UCS normalizer" {
   style.font-color: "#172033"
 }
 
-model: "Wear-Rate-Modell\n(vortrainiert auf UR5)" {
+model: "Wear-rate model\n(pretrained on UR5)" {
   style.font-color: "#1f55ff"
 }
 
-cost_engine: "Cost-Engine" {
+cost_engine: "Cost engine" {
   style.font-color: "#172033"
 }
 
 drop: {
-  user -> ucs_agent: "drop( Telemetrie-CSV + Datasheet )"
+  user -> ucs_agent: "drop( telemetry CSV + datasheet )"
 }
 
-map_telemetry: "Schema-Mapping" {
-  ucs_agent -> ucs_agent: "LLM-Call 1\nFeldnamen → UCS-Schema"
-  ucs_agent -> ucs_agent: "LLM-Call 2\nDatasheet → Konstanten"
-  ucs_agent -> user: "Mapping-Vorschlag\nmit Confidence"
-  user -> ucs_agent: "bestätigen"
+map_telemetry: "Schema mapping" {
+  ucs_agent -> ucs_agent: "LLM call 1\nfield names → UCS schema"
+  ucs_agent -> ucs_agent: "LLM call 2\ndatasheet → constants"
+  ucs_agent -> user: "mapping proposal\nwith confidence"
+  user -> ucs_agent: "confirm"
 }
 
-inference: "Inferenz — kein Re-Training" {
-  ucs_agent -> normalizer: "rohe Telemetrie + Datasheet"
-  normalizer -> model: "dimensionslose UCS-Features"
+inference: "Inference — no re-training" {
+  ucs_agent -> normalizer: "raw telemetry + datasheet"
+  normalizer -> model: "dimensionless UCS features"
   model -> cost_engine: "wear_rate_multiplier"
-  cost_engine -> user: "Cost-per-Pick — live"
+  cost_engine -> user: "cost-per-pick — live"
 }

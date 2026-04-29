@@ -18,7 +18,7 @@ classes: {
   }
 }
 
-scale: "wear_rate_multiplier — kontinuierliche Ausgabe pro Pick" {
+scale: "wear_rate_multiplier — continuous output per pick" {
   style.fill: "#ffffff"
   style.stroke: "#1f55ff"
   style.stroke-width: 2
@@ -26,24 +26,24 @@ scale: "wear_rate_multiplier — kontinuierliche Ausgabe pro Pick" {
   style.font-size: 16
   style.bold: true
 
-  low: "0.3×\nschonend" {
+  low: "0.3×\nlight" {
     class: band
     style.fill: "#f7f5ef"
     style.stroke: "#687385"
   }
-  nominal: "1.0×\nnominal\n(Anker)" {
+  nominal: "1.0×\nnominal\n(anchor)" {
     class: band
     style.fill: "#ffffff"
     style.stroke: "#1f55ff"
     style.stroke-width: 2
   }
-  heavy: "2.5×\nschwere Last\n+ thermisch" {
+  heavy: "2.5×\nheavy load\n+ thermal" {
     class: band
     style.fill: "#1f55ff"
     style.stroke: "#1f55ff"
     style.font-color: "#ffffff"
   }
-  critical: "5.0×\nclip-cap" {
+  critical: "5.0×\nclip cap" {
     class: band
     style.fill: "#172033"
     style.stroke: "#172033"
@@ -53,7 +53,7 @@ scale: "wear_rate_multiplier — kontinuierliche Ausgabe pro Pick" {
   low -> nominal -> heavy -> critical
 }
 
-cost_hook: "Verschleiß-Komponente\nim Cost-per-Pick\nskaliert direkt mit\nwear_rate_multiplier" {
+cost_hook: "wear component\nin cost-per-pick\nscales linearly with\nwear_rate_multiplier" {
   style.fill: "#f7f5ef"
   style.stroke: "#172033"
   style.stroke-dash: 3
@@ -61,7 +61,7 @@ cost_hook: "Verschleiß-Komponente\nim Cost-per-Pick\nskaliert direkt mit\nwear_
   style.font-color: "#172033"
 }
 
-scale -> cost_hook: "speist"
+scale -> cost_hook: "feeds"
 
 (* -> *)[*].style: {
   stroke: "#172033"

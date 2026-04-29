@@ -41,20 +41,20 @@ classes: {
 }
 
 load: "load_factor\n(I_max / I_rated)^α\n\nα = 2.5" { class: factor }
-load_law: "Basquin-Gesetz\nMaterialermüdung ∝ Last^α" { class: law }
+load_law: "Basquin's law\nfatigue ∝ load^α" { class: law }
 load_law -> load: { style.stroke-dash: 3 }
 
 thermal: "thermal_factor\nexp( k · (T_max − T_ref) )\n\nk = 0.05 · T_ref = 30 °C" { class: factor }
-thermal_law: "Arrhenius-Beziehung\nthermische Alterung exponentiell" { class: law }
+thermal_law: "Arrhenius relation\nexponential thermal aging" { class: law }
 thermal_law -> thermal: { style.stroke-dash: 3 }
 
 cycle: "cycle_factor\nT_rated / T_observed\n\nT_rated = 2.0 s" { class: factor }
-cycle_law: "Zyklusrate\ndichtere Zyklen → mehr Stress" { class: law }
+cycle_law: "Cycle density\ndenser cycles → less recovery" { class: law }
 cycle_law -> cycle: { style.stroke-dash: 3 }
 
 multiplier: "wear_rate_multiplier\n=  load · thermal · cycle" { class: output }
 
-anchor: "Anker-Normalisierung\nMedian( warm + fullspeed + light + Train ) ≡ 1.0×" {
+anchor: "Anchor normalization\nmedian( warm + fullspeed + light + train ) ≡ 1.0×" {
   class: law
   style.font-size: 12
 }
@@ -62,7 +62,7 @@ anchor: "Anker-Normalisierung\nMedian( warm + fullspeed + light + Train ) ≡ 1.
 load -> multiplier
 thermal -> multiplier
 cycle -> multiplier
-multiplier -> anchor: "kalibrieren"
+multiplier -> anchor: "calibrate"
 
 (* -> *)[*].style: {
   stroke: "#172033"

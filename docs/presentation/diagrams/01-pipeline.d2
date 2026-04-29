@@ -2,19 +2,6 @@ vars: {
   d2-config: {
     layout-engine: dagre
     pad: 40
-    theme-overrides: {
-      B1: "#1f55ff"
-      B2: "#1f55ff"
-      B3: "#172033"
-      B4: "#f7f5ef"
-      B5: "#ffffff"
-      B6: "#ffffff"
-      AA2: "#172033"
-      AA4: "#687385"
-      AA5: "#f7f5ef"
-      AB4: "#f7f5ef"
-      AB5: "#ffffff"
-    }
   }
 }
 
@@ -44,30 +31,30 @@ classes: {
   }
 }
 
-telemetry: "Telemetrie\n125 Hz · 73 Felder" { class: stage }
-windowing: "Windowing\n2 s Fenster" { class: stage }
-normalize: "UCS-Normalisierung\ndimensionslos" { class: stage }
-labels: "Physik-Labels\nBasquin · Arrhenius · Cycle" { class: stage }
-model: "LightGBM\nWear-Rate-Modell" { class: stage }
-cost: "Cost-Engine\n€ pro Pick" { class: stage }
+telemetry: "Telemetry\n125 Hz · 73 fields" { class: stage }
+windowing: "Windowing\n2 s window" { class: stage }
+normalize: "UCS normalization\ndimensionless" { class: stage }
+labels: "Physics labels\nBasquin · Arrhenius · Cycle" { class: stage }
+model: "LightGBM\nwear-rate model" { class: stage }
+cost: "Cost engine\n€ per pick" { class: stage }
 
-views: "Output-Views" {
+views: "Output views" {
   style: {
     fill: "#f7f5ef"
     stroke: "#1f55ff"
     stroke-dash: 4
     border-radius: 12
   }
-  cfo: "CFO\nLive-Billing" { class: persona }
-  ops: "Operator\nFlotten-Cost" { class: persona }
-  bank: "Bank\nCredit Score" { class: persona }
+  cfo: "CFO\nlive billing" { class: persona }
+  ops: "Operator\nfleet cost" { class: persona }
+  bank: "Bank\ncredit score" { class: persona }
 }
 
 telemetry -> windowing
 windowing -> normalize
-normalize -> labels: "Train-Set"
-normalize -> model: "Inference"
-labels -> model: "Train"
+normalize -> labels: "train set"
+normalize -> model: "inference"
+labels -> model: "train"
 model -> cost: "wear_rate_multiplier\n0.3× – 5.0×"
 cost -> views.cfo
 cost -> views.ops
